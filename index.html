@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>文字雲輸入</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background: #0f172a;
+      color: #0f172a;
+    }
+
+    body { padding: 18px; }
+
+    .page {
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.28);
+      margin-bottom: 16px;
+    }
+
+    .title {
+      margin: 0 0 10px;
+      font-size: 32px;
+      line-height: 1.2;
+      letter-spacing: -.04em;
+    }
+
+    .desc {
+      color: #64748b;
+      font-size: 17px;
+      line-height: 1.6;
+      margin: 0 0 18px;
+    }
+
+    .label {
+      display: block;
+      margin: 0 0 8px;
+      color: #334155;
+      font-weight: 900;
+      font-size: 17px;
+    }
+
+    input {
+      width: 100%;
+      height: 64px;
+      border: 1px solid #cbd5e1;
+      border-radius: 20px;
+      padding: 0 18px;
+      font-size: 24px;
+      font-weight: 800;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 5px rgba(37,99,235,.14);
+    }
+
+    button {
+      width: 100%;
+      height: 64px;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      font-size: 22px;
+      font-weight: 950;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .hidden { display: none !important; }
+
+    .questionBox {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      color: white;
+    }
+
+    .questionNo {
+      font-size: 16px;
+      opacity: .85;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .questionText {
+      font-size: 28px;
+      font-weight: 950;
+      line-height: 1.35;
+      letter-spacing: -.03em;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .metaItem {
+      border-radius: 18px;
+      background: #f1f5f9;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .metaLabel {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .metaValue {
+      font-size: 22px;
+      color: #0f172a;
+      font-weight: 950;
+    }
+
+    .status {
+      min-height: 24px;
+      margin-top: 12px;
+      font-size: 16px;
+      font-weight: 900;
+      color: #64748b;
+    }
+
+    .status.error { color: #dc2626; }
+    .status.success { color: #16a34a; }
+
+    .historyTitle {
+      font-size: 20px;
+      font-weight: 950;
+      margin-bottom: 12px;
+    }
+
+    .historyItem {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 8px;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .APPROVED {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .PENDING {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .REJECTED {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 14px; }
+
+      .card {
+        border-radius: 24px;
+        padding: 20px;
+      }
+
+      .title { font-size: 30px; }
+      .questionText { font-size: 27px; }
+
+      input,
+      button {
+        height: 68px;
+        font-size: 25px;
+      }
+
+      .meta { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section id="joinCard" class="card">
+      <h1 class="title">進入文字雲</h1>
+      <p class="desc">請先輸入暱稱，進入後即可針對目前題目送出文字。</p>
+
+      <label class="label" for="nicknameInput">暱稱</label>
+      <input id="nicknameInput" maxlength="12" autocomplete="off" placeholder="例如：高弟兄" />
+
+      <button id="joinBtn" type="button">進入</button>
+      <div id="joinStatus" class="status"></div>
+    </section>
+
+    <section id="mainArea" class="hidden">
+      <section class="card questionBox">
+        <div id="questionNo" class="questionNo">目前題目</div>
+        <div id="questionText" class="questionText">載入中...</div>
+      </section>
+
+      <section class="card">
+        <div class="meta">
+          <div class="metaItem">
+            <div class="metaLabel">暱稱</div>
+            <div id="nicknameDisplay" class="metaValue">-</div>
+          </div>
+
+          <div class="metaItem">
+            <div class="metaLabel">剩餘次數</div>
+            <div id="remainingDisplay" class="metaValue">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <label class="label" for="wordInput">輸入文字</label>
+        <input id="wordInput" maxlength="200" autocomplete="off" placeholder="輸入後按送出" />
+        <button id="sendBtn" type="button">送出</button>
+        <div id="sendStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <div class="historyTitle">我的回應紀錄</div>
+        <div id="historyList"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
+
+    const state = {
+      clientId: '',
+      nickname: '',
+      joined: false,
+      timer: null
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      state.clientId = getOrCreateClientId();
+
+      const savedNickname = localStorage.getItem('wc.nickname') || '';
+      document.getElementById('nicknameInput').value = savedNickname;
+
+      document.getElementById('joinBtn').addEventListener('click', join);
+      document.getElementById('sendBtn').addEventListener('click', submitWord);
+
+      document.getElementById('nicknameInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') join();
+      });
+
+      document.getElementById('wordInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitWord();
+      });
+    });
+
+    async function join() {
+      const nickname = document.getElementById('nicknameInput').value.trim();
+      const btn = document.getElementById('joinBtn');
+
+      setMsg('joinStatus', '', '');
+
+      if (!nickname) {
+        setMsg('joinStatus', '請輸入暱稱', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '進入中...';
+
+      try {
+        const result = await gas('joinUser', {
+          clientId: state.clientId,
+          nickname
+        });
+
+        state.clientId = result.clientId;
+        state.nickname = result.nickname;
+        state.joined = true;
+
+        localStorage.setItem('wc.clientId', state.clientId);
+        localStorage.setItem('wc.nickname', state.nickname);
+
+        document.getElementById('joinCard').classList.add('hidden');
+        document.getElementById('mainArea').classList.remove('hidden');
+
+        renderUserState(result.state);
+
+        clearInterval(state.timer);
+        state.timer = setInterval(refreshUserState, 3000);
+
+      } catch (err) {
+        setMsg('joinStatus', messageOf(err), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '進入';
+      }
+    }
+
+    async function refreshUserState() {
+      if (!state.joined) return;
+
+      try {
+        const result = await gas('getUserState', {
+          clientId: state.clientId,
+          nickname: state.nickname
+        });
+
+        renderUserState(result);
+      } catch (err) {
+        setMsg('sendStatus', '同步失敗，系統會自動重試', 'error');
+      }
+    }
+
+    async function submitWord() {
+      const input = document.getElementById('wordInput');
+      const text = input.value.trim();
+      const btn = document.getElementById('sendBtn');
+
+      setMsg('sendStatus', '', '');
+
+      if (!text) {
+        setMsg('sendStatus', '請輸入文字', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '送出中...';
+
+      try {
+        const result = await gas('submitUserResponse', {
+          clientId: state.clientId,
+          nickname: state.nickname,
+          text
+        });
+
+        input.value = '';
+        input.focus();
+
+        renderUserState(result.state);
+        setMsg('sendStatus', result.message, 'success');
+
+      } catch (err) {
+        setMsg('sendStatus', messageOf(err), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '送出';
+      }
+    }
+
+    function renderUserState(data) {
+      const q = data.question || {};
+
+      document.getElementById('questionNo').textContent =
+        q.questionNo ? '第 ' + q.questionNo + ' 題' : '目前題目';
+
+      document.getElementById('questionText').textContent =
+        q.questionText || '尚未設定題目';
+
+      document.getElementById('nicknameDisplay').textContent =
+        state.nickname || data.user.nickname || '-';
+
+      document.getElementById('remainingDisplay').textContent =
+        data.user.remaining === null ? '不限' : data.user.remaining;
+
+      const sendBtn = document.getElementById('sendBtn');
+
+      if (data.systemStatus !== 'OPEN' || q.status !== 'OPEN') {
+        sendBtn.disabled = true;
+        setMsg('sendStatus', '目前尚未開放送出', 'error');
+      } else if (data.user.remaining !== null && data.user.remaining <= 0) {
+        sendBtn.disabled = true;
+        setMsg('sendStatus', '你已達本題送出上限', 'error');
+      } else {
+        sendBtn.disabled = false;
+      }
+
+      renderHistory(data.ownResponses || []);
+    }
+
+    function renderHistory(items) {
+      const box = document.getElementById('historyList');
+
+      if (!items.length) {
+        box.innerHTML = '<div class="desc">尚未送出任何文字</div>';
+        return;
+      }
+
+      box.innerHTML = items.map(item => `
+        <div class="historyItem">
+          <span>${escapeHtml(item.rawText)}</span>
+          <span class="badge ${item.status}">${statusText(item.status)}</span>
+        </div>
+      `).join('');
+    }
+
+    function statusText(status) {
+      if (status === 'APPROVED') return '已顯示';
+      if (status === 'PENDING') return '待審核';
+      if (status === 'REJECTED') return '已拒絕';
+      return status || '';
+    }
+
+    function getOrCreateClientId() {
+      let id = localStorage.getItem('wc.clientId');
+
+      if (id) return id;
+
+      id = 'wc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+      localStorage.setItem('wc.clientId', id);
+
+      return id;
+    }
+
+    function gas(fn, payload) {
+      return jsonp(GAS_API_URL, fn, payload);
+    }
+
+    function jsonp(baseUrl, api, payload) {
+      return new Promise((resolve, reject) => {
+        const callbackName = '__wc_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const script = document.createElement('script');
+
+        const params = new URLSearchParams();
+        params.set('api', api);
+        params.set('callback', callbackName);
+        params.set('_', String(Date.now()));
+
+        if (payload !== undefined) {
+          params.set('payload', JSON.stringify(payload));
+        }
+
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error('連線逾時，請稍後再試'));
+        }, 15000);
+
+        function cleanup() {
+          clearTimeout(timer);
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[callbackName] = data => {
+          cleanup();
+
+          if (!data || data.ok === false) {
+            reject(new Error(data && data.message ? data.message : 'API 執行失敗'));
+            return;
+          }
+
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('無法連線到後端 API'));
+        };
+
+        script.src = baseUrl + '?' + params.toString();
+        document.head.appendChild(script);
+      });
+    }
+
+    function setMsg(id, text, type) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'status ' + (type || '');
+    }
+
+    function messageOf(err) {
+      return err && err.message
+        ? err.message.replace(/^Exception:\s*/i, '')
+        : '發生錯誤';
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
