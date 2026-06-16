@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>文字雲遙控器</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(37,99,235,.38), transparent 34%),
+        radial-gradient(circle at 80% 18%, rgba(124,58,237,.35), transparent 30%),
+        #0f172a;
+      color: #0f172a;
+    }
+
+    body {
+      padding: 14px;
+    }
+
+    .wrap {
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .header {
+      color: white;
+      padding: 8px 2px 16px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 30px;
+      font-weight: 950;
+      letter-spacing: -.05em;
+      line-height: 1.15;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: rgba(255,255,255,.72);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .card {
+      background: rgba(255,255,255,.96);
+      border: 1px solid rgba(255,255,255,.62);
+      border-radius: 26px;
+      box-shadow: 0 18px 42px rgba(0,0,0,.26);
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+
+    .statusLine {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .statusPill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 8px 15px;
+      border-radius: 999px;
+      font-size: 18px;
+      font-weight: 950;
+    }
+
+    .OPEN {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .PAUSED {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .CLOSED {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .smallText {
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .questionNo {
+      color: #2563eb;
+      font-size: 16px;
+      font-weight: 950;
+      margin-bottom: 8px;
+    }
+
+    .questionText {
+      font-size: 28px;
+      line-height: 1.35;
+      font-weight: 950;
+      letter-spacing: -.04em;
+      color: #0f172a;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .statItem {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      padding: 12px 8px;
+      text-align: center;
+    }
+
+    .statNum {
+      font-size: 24px;
+      font-weight: 950;
+      color: #0f172a;
+    }
+
+    .statLabel {
+      margin-top: 3px;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 900;
+    }
+
+    .buttonGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 22px;
+      min-height: 74px;
+      padding: 12px;
+      color: white;
+      font-size: 22px;
+      font-weight: 950;
+      cursor: pointer;
+      box-shadow: 0 12px 24px rgba(15,23,42,.2);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: .52;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btnPrimary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
+
+    .btnSuccess {
+      background: linear-gradient(135deg, #16a34a, #15803d);
+    }
+
+    .btnWarning {
+      background: linear-gradient(135deg, #d97706, #b45309);
+    }
+
+    .btnDanger {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+    }
+
+    .btnSecondary {
+      background: linear-gradient(135deg, #475569, #334155);
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .sectionTitle {
+      font-size: 20px;
+      font-weight: 950;
+      margin-bottom: 12px;
+      color: #0f172a;
+    }
+
+    .questionList {
+      display: grid;
+      gap: 10px;
+    }
+
+    .questionItem {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #0f172a;
+      box-shadow: none;
+      min-height: 66px;
+      text-align: left;
+      font-size: 17px;
+      border-radius: 18px;
+      padding: 12px 14px;
+    }
+
+    .questionItem.active {
+      border-color: #2563eb;
+      background: #dbeafe;
+    }
+
+    .questionItemTop {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 5px;
+      font-size: 13px;
+      color: #475569;
+      font-weight: 950;
+    }
+
+    .questionItemText {
+      font-size: 17px;
+      line-height: 1.35;
+      font-weight: 950;
+    }
+
+    .message {
+      min-height: 22px;
+      color: rgba(255,255,255,.82);
+      font-size: 14px;
+      font-weight: 800;
+      padding: 2px 4px 14px;
+    }
+
+    .message.error {
+      color: #fecaca;
+    }
+
+    @media (max-width: 420px) {
+      body {
+        padding: 12px;
+      }
+
+      .title {
+        font-size: 28px;
+      }
+
+      .questionText {
+        font-size: 26px;
+      }
+
+      button {
+        min-height: 72px;
+        font-size: 21px;
+      }
+
+      .card {
+        border-radius: 24px;
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="wrap">
+    <header class="header">
+      <h1 class="title">主持者遙控器</h1>
+      <div class="subtitle">快速切換題目、開放與暫停作答</div>
+    </header>
+
+    <div id="message" class="message">載入中...</div>
+
+    <section class="card">
+      <div class="statusLine">
+        <div id="statusPill" class="statusPill">同步中</div>
+        <div id="updatedAt" class="smallText">尚未同步</div>
+      </div>
+
+      <div id="questionNo" class="questionNo">目前題目</div>
+      <div id="questionText" class="questionText">載入中...</div>
+
+      <div class="stats">
+        <div class="statItem">
+          <div id="participantCount" class="statNum">0</div>
+          <div class="statLabel">參與</div>
+        </div>
+        <div class="statItem">
+          <div id="responseCount" class="statNum">0</div>
+          <div class="statLabel">回應</div>
+        </div>
+        <div class="statItem">
+          <div id="uniqueWordCount" class="statNum">0</div>
+          <div class="statLabel">文字</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="sectionTitle">作答狀態</div>
+
+      <div class="buttonGrid">
+        <button id="openBtn" class="btnSuccess" type="button" onclick="changeStatus('OPEN')">開放作答</button>
+        <button id="pauseBtn" class="btnWarning" type="button" onclick="changeStatus('PAUSED')">暫停作答</button>
+        <button id="closeBtn" class="btnDanger wide" type="button" onclick="changeStatus('CLOSED')">截止作答</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="sectionTitle">切換題目</div>
+
+      <div class="buttonGrid">
+        <button id="prevBtn" class="btnSecondary" type="button" onclick="switchDirection('PREV')">上一題</button>
+        <button id="nextBtn" class="btnPrimary" type="button" onclick="switchDirection('NEXT')">下一題</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="sectionTitle">題目清單</div>
+      <div id="questionList" class="questionList"></div>
+    </section>
+  </main>
+
+  <script>
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
+
+    let remoteState = null;
+    let busy = false;
+    let timer = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      refresh();
+      timer = setInterval(refresh, 1000);
+    });
+
+    async function refresh() {
+      if (busy) return;
+
+      try {
+        const data = await gas('getRemoteState');
+
+        remoteState = data;
+        render(data);
+        setMessage('已同步', false);
+
+      } catch (err) {
+        setMessage(messageOf(err), true);
+      }
+    }
+
+    function render(data) {
+      const activeQuestion = (data.questions || []).find(q => q.questionId === data.activeQuestionId) || {};
+
+      const statusPill = document.getElementById('statusPill');
+      statusPill.textContent = statusText(data.systemStatus);
+      statusPill.className = 'statusPill ' + data.systemStatus;
+
+      document.getElementById('updatedAt').textContent =
+        new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
+      document.getElementById('questionNo').textContent =
+        activeQuestion.questionNo ? '第 ' + activeQuestion.questionNo + ' 題' : '目前題目';
+
+      document.getElementById('questionText').textContent =
+        activeQuestion.questionText || '尚未設定題目';
+
+      document.getElementById('participantCount').textContent = data.participantCount || 0;
+      document.getElementById('responseCount').textContent = data.responseCount || 0;
+      document.getElementById('uniqueWordCount').textContent = data.uniqueWordCount || 0;
+
+      renderQuestionList(data.questions || [], data.activeQuestionId);
+    }
+
+    function renderQuestionList(questions, activeQuestionId) {
+      const box = document.getElementById('questionList');
+
+      if (!questions.length) {
+        box.innerHTML = '<div class="smallText" style="text-align:left;">尚未建立題目</div>';
+        return;
+      }
+
+      box.innerHTML = questions.map(q => `
+        <button
+          type="button"
+          class="questionItem ${q.questionId === activeQuestionId ? 'active' : ''}"
+          onclick="activateQuestion('${escapeJsAttr(q.questionId)}')"
+        >
+          <div class="questionItemTop">
+            <span>第 ${escapeHtml(q.questionNo)} 題</span>
+            <span>${q.questionId === activeQuestionId ? '目前題目' : questionStatusText(q.status)}</span>
+          </div>
+          <div class="questionItemText">${escapeHtml(q.questionText)}</div>
+        </button>
+      `).join('');
+    }
+
+    async function changeStatus(status) {
+      if (busy) return;
+
+      setBusy(true);
+
+      try {
+        const result = await gas('setSystemStatus', status);
+
+        remoteState = result.remoteState;
+        render(result.remoteState);
+        setMessage(result.message, false);
+
+      } catch (err) {
+        setMessage(messageOf(err), true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function switchDirection(direction) {
+      if (busy) return;
+
+      setBusy(true);
+
+      try {
+        const result = await gas('setActiveQuestionByDirection', direction);
+
+        remoteState = result.remoteState;
+        render(result.remoteState);
+        setMessage(result.message, false);
+
+      } catch (err) {
+        setMessage(messageOf(err), true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function activateQuestion(questionId) {
+      if (busy) return;
+
+      setBusy(true);
+
+      try {
+        const result = await gas('setActiveQuestion', questionId);
+
+        remoteState = result.remoteState;
+        render(result.remoteState);
+        setMessage(result.message, false);
+
+      } catch (err) {
+        setMessage(messageOf(err), true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function setBusy(value) {
+      busy = value;
+
+      ['openBtn', 'pauseBtn', 'closeBtn', 'prevBtn', 'nextBtn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = value;
+      });
+    }
+
+    function setMessage(text, isError) {
+      const el = document.getElementById('message');
+      el.textContent = text || '';
+      el.className = 'message ' + (isError ? 'error' : '');
+    }
+
+    function statusText(status) {
+      if (status === 'OPEN') return '開放作答中';
+      if (status === 'PAUSED') return '暫停作答';
+      if (status === 'CLOSED') return '已截止';
+      return status || '';
+    }
+
+    function questionStatusText(status) {
+      if (status === 'OPEN') return '開放';
+      if (status === 'CLOSED') return '關閉';
+      if (status === 'DRAFT') return '草稿';
+      return status || '';
+    }
+
+    function gas(fn, payload) {
+      return jsonp(GAS_API_URL, fn, payload);
+    }
+
+    function jsonp(baseUrl, api, payload) {
+      return new Promise((resolve, reject) => {
+        const callbackName = '__wc_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const script = document.createElement('script');
+
+        const params = new URLSearchParams();
+        params.set('api', api);
+        params.set('callback', callbackName);
+        params.set('_', String(Date.now()));
+
+        if (payload !== undefined) {
+          params.set('payload', JSON.stringify(payload));
+        }
+
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error('連線逾時，請稍後再試'));
+        }, 15000);
+
+        function cleanup() {
+          clearTimeout(timer);
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[callbackName] = data => {
+          cleanup();
+
+          if (!data || data.ok === false) {
+            reject(new Error(data && data.message ? data.message : 'API 執行失敗'));
+            return;
+          }
+
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('無法連線到後端 API'));
+        };
+
+        script.src = baseUrl + '?' + params.toString();
+        document.head.appendChild(script);
+      });
+    }
+
+    function messageOf(err) {
+      return err && err.message
+        ? err.message.replace(/^Exception:\s*/i, '')
+        : '發生錯誤';
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeJsAttr(value) {
+      return String(value == null ? '' : value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n');
+    }
+  </script>
+</body>
+</html>
