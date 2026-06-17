@@ -77,6 +77,10 @@
       gap: 16px;
     }
 
+    .main.hideSide {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
     .panel {
       min-height: 0;
       border-radius: 32px;
@@ -210,7 +214,7 @@
       </div>
     </header>
 
-    <section class="main">
+    <section id="main" class="main">
       <section id="cloud" class="panel cloud">
         <div class="empty">
           尚未有文字
@@ -237,6 +241,9 @@
   <script>
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
 
+    const DISPLAY_SYNC_MS = 1000;
+    const DISPLAY_ERROR_RETRY_MS = 3000;
+
     const colors = [
       '#0f172a',
       '#1d4ed8',
@@ -251,52 +258,102 @@
 
     let timer = null;
     let refreshing = false;
+    let lastFrameSignature = '';
+    let lastCloudSignature = '';
+    let lastParticipantsSignature = '';
 
-    document.addEventListener('DOMContentLoaded', refresh);
+    document.addEventListener('DOMContentLoaded', () => {
+      refresh();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    });
+
+    function scheduleNextRefresh(delay) {
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      timer = setTimeout(refresh, delay || DISPLAY_SYNC_MS);
+    }
 
     async function refresh() {
-      if (refreshing) return;
+      if (refreshing) {
+        scheduleNextRefresh(500);
+        return;
+      }
+
       refreshing = true;
 
       try {
         const data = await gas('getDisplayState');
 
         render(data);
-
-        const seconds = Number(data.refreshSeconds || 1);
-
-        clearTimeout(timer);
-        timer = setTimeout(refresh, Math.max(1, seconds) * 1000);
+        scheduleNextRefresh(Math.max(1, Number(data.refreshSeconds || 1)) * 1000);
 
       } catch (err) {
         document.getElementById('updatedAt').textContent = '同步失敗，稍後重試';
-        clearTimeout(timer);
-        timer = setTimeout(refresh, 3000);
+        scheduleNextRefresh(DISPLAY_ERROR_RETRY_MS);
+
       } finally {
         refreshing = false;
       }
     }
 
     function render(data) {
+      updateSyncTime();
+
+      const frameSignature = getFrameSignature(data);
+
+      if (frameSignature !== lastFrameSignature) {
+        lastFrameSignature = frameSignature;
+        renderFrame(data);
+      }
+
+      const cloudSignature = getCloudSignature(data.words || []);
+
+      if (cloudSignature !== lastCloudSignature) {
+        lastCloudSignature = cloudSignature;
+        renderCloud(data.words || []);
+      }
+
+      const participantsSignature = getParticipantsSignature(data.participants || [], data.showParticipants);
+
+      if (participantsSignature !== lastParticipantsSignature) {
+        lastParticipantsSignature = participantsSignature;
+        renderParticipants(data.participants || [], data.showParticipants);
+      }
+    }
+
+    function renderFrame(data) {
       const q = data.question || {};
 
-      document.getElementById('sessionName').textContent = data.session.sessionName || '即時文字雲';
-      document.getElementById('questionText').textContent = q.questionText || '尚未設定題目';
-      document.getElementById('questionNo').textContent = q.questionNo ? '第 ' + q.questionNo + ' 題' : '目前題目';
+      document.getElementById('sessionName').textContent =
+        data.session && data.session.sessionName ? data.session.sessionName : '即時文字雲';
+
+      document.getElementById('questionText').textContent =
+        q.questionText || '尚未設定題目';
+
+      document.getElementById('questionNo').textContent =
+        q.questionNo ? '第 ' + q.questionNo + ' 題' : '目前題目';
 
       const statusPill = document.getElementById('statusPill');
       statusPill.textContent = statusText(data.systemStatus);
-      statusPill.className = 'pill ' + data.systemStatus;
+      statusPill.className = 'pill ' + safeStatusClass(data.systemStatus);
 
-      document.getElementById('participantCount').textContent = data.participantCount + ' 人';
+      document.getElementById('participantCount').textContent =
+        toSafeNumber(data.participantCount) + ' 人';
+
       document.getElementById('summary').textContent =
-        '回應數：' + data.responseCount + '｜文字數：' + data.uniqueWordCount;
+        '回應數：' + toSafeNumber(data.responseCount) + '｜文字數：' + toSafeNumber(data.uniqueWordCount);
+    }
 
+    function updateSyncTime() {
       document.getElementById('updatedAt').textContent =
         '最後同步：' + new Date().toLocaleTimeString('zh-TW', { hour12: false });
-
-      renderCloud(data.words || []);
-      renderParticipants(data.participants || [], data.showParticipants);
     }
 
     function renderCloud(words) {
@@ -336,10 +393,19 @@
     }
 
     function renderParticipants(items, showParticipants) {
+      const main = document.getElementById('main');
       const sidePanel = document.getElementById('sidePanel');
       const box = document.getElementById('participants');
 
-      sidePanel.style.display = showParticipants ? 'grid' : 'none';
+      const shouldShow = normalizeBoolean(showParticipants, true);
+
+      sidePanel.style.display = shouldShow ? 'grid' : 'none';
+      main.classList.toggle('hideSide', !shouldShow);
+
+      if (!shouldShow) {
+        box.innerHTML = '';
+        return;
+      }
 
       if (!items.length) {
         box.innerHTML = '<div class="emptySmall">尚未有人加入</div>';
@@ -354,11 +420,52 @@
       `).join('');
     }
 
+    function getFrameSignature(data) {
+      const q = data.question || {};
+      const session = data.session || {};
+
+      return JSON.stringify({
+        dataVersion: data.dataVersion || '',
+        sessionName: session.sessionName || '',
+        systemStatus: data.systemStatus || '',
+        questionId: q.questionId || '',
+        questionNo: q.questionNo || 0,
+        questionText: q.questionText || '',
+        participantCount: data.participantCount || 0,
+        responseCount: data.responseCount || 0,
+        uniqueWordCount: data.uniqueWordCount || 0
+      });
+    }
+
+    function getCloudSignature(words) {
+      return JSON.stringify((words || []).map(w => ({
+        text: w.text || '',
+        count: Number(w.count || 0)
+      })));
+    }
+
+    function getParticipantsSignature(items, showParticipants) {
+      return JSON.stringify({
+        showParticipants: normalizeBoolean(showParticipants, true),
+        items: (items || []).map(p => ({
+          nickname: p.nickname || '',
+          clientId: p.clientId || ''
+        }))
+      });
+    }
+
     function statusText(status) {
       if (status === 'OPEN') return '開放中';
       if (status === 'PAUSED') return '暫停';
       if (status === 'CLOSED') return '已截止';
       return status || '';
+    }
+
+    function safeStatusClass(status) {
+      if (status === 'OPEN') return 'OPEN';
+      if (status === 'PAUSED') return 'PAUSED';
+      if (status === 'CLOSED') return 'CLOSED';
+      return '';
     }
 
     function initial(name) {
@@ -392,7 +499,10 @@
         function cleanup() {
           clearTimeout(timer);
           delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
+
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
         }
 
         window[callbackName] = data => {
@@ -416,8 +526,25 @@
       });
     }
 
+    function normalizeBoolean(value, defaultValue) {
+      if (value === true) return true;
+      if (value === false) return false;
+
+      const text = String(value == null ? '' : value).trim().toUpperCase();
+
+      if (text === 'TRUE' || text === 'YES' || text === 'Y' || text === '1') return true;
+      if (text === 'FALSE' || text === 'NO' || text === 'N' || text === '0') return false;
+
+      return !!defaultValue;
+    }
+
+    function toSafeNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    }
+
     function escapeHtml(value) {
-      return String(value || '')
+      return String(value == null ? '' : value)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
