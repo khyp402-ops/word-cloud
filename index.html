@@ -284,12 +284,15 @@
 
     const USER_SYNC_MS = 2500;
     const USER_SYNC_ERROR_MS = 4000;
-    const ACTIVE_HEARTBEAT_MS = 60000;
+
+    // 後端 ACTIVE_MINUTES 已改成 2 分鐘，所以 heartbeat 不可太久。
+    const ACTIVE_HEARTBEAT_MS = 30000;
 
     const state = {
       clientId: '',
       nickname: '',
       joined: false,
+      leaving: false,
       syncing: false,
       submitBusy: false,
       syncTimer: null,
@@ -320,13 +323,21 @@
       });
     });
 
-    window.addEventListener('beforeunload', () => {
-      if (state.syncTimer) {
-        clearTimeout(state.syncTimer);
-      }
+    window.addEventListener('pagehide', () => {
+      leaveCurrentUser();
+    });
 
-      if (state.heartbeatTimer) {
-        clearInterval(state.heartbeatTimer);
+    window.addEventListener('beforeunload', () => {
+      leaveCurrentUser();
+    });
+
+    window.addEventListener('unload', () => {
+      leaveCurrentUser();
+    });
+
+    window.addEventListener('pageshow', event => {
+      if (event.persisted && state.joined && state.clientId && state.nickname) {
+        touchActiveSilently();
       }
     });
 
@@ -353,6 +364,7 @@
         state.clientId = result.clientId;
         state.nickname = result.nickname;
         state.joined = true;
+        state.leaving = false;
 
         localStorage.setItem('wc.clientId', state.clientId);
         localStorage.setItem('wc.nickname', state.nickname);
@@ -389,7 +401,7 @@
     }
 
     async function refreshUserState() {
-      if (!state.joined) {
+      if (!state.joined || state.leaving) {
         return;
       }
 
@@ -424,19 +436,86 @@
         clearInterval(state.heartbeatTimer);
       }
 
+      touchActiveSilently();
+
       state.heartbeatTimer = setInterval(() => {
-        if (!state.joined || !state.clientId || !state.nickname) {
-          return;
-        }
-
-        gas('touchUserActive', {
-          clientId: state.clientId,
-          nickname: state.nickname
-        }).catch(() => {
-          // 活躍狀態更新失敗不影響使用者作答。
-        });
-
+        touchActiveSilently();
       }, ACTIVE_HEARTBEAT_MS);
+    }
+
+    function touchActiveSilently() {
+      if (!state.joined || state.leaving || !state.clientId || !state.nickname) {
+        return;
+      }
+
+      gas('touchUserActive', {
+        clientId: state.clientId,
+        nickname: state.nickname
+      }).catch(() => {
+        // 活躍狀態更新失敗不影響使用者作答。
+      });
+    }
+
+    function stopTimers() {
+      if (state.syncTimer) {
+        clearTimeout(state.syncTimer);
+        state.syncTimer = null;
+      }
+
+      if (state.heartbeatTimer) {
+        clearInterval(state.heartbeatTimer);
+        state.heartbeatTimer = null;
+      }
+    }
+
+    function leaveCurrentUser() {
+      if (!state.joined || state.leaving || !state.clientId) {
+        return;
+      }
+
+      state.leaving = true;
+      stopTimers();
+
+      const payload = {
+        clientId: state.clientId
+      };
+
+      // 優先使用 sendBeacon，關閉頁面時較可靠。
+      try {
+        if (navigator.sendBeacon) {
+          const body = JSON.stringify({
+            api: 'leaveUser',
+            payload
+          });
+
+          const blob = new Blob([body], {
+            type: 'text/plain;charset=UTF-8'
+          });
+
+          const sent = navigator.sendBeacon(GAS_API_URL, blob);
+
+          if (sent) {
+            return;
+          }
+        }
+      } catch (err) {
+        // 繼續走 fallback。
+      }
+
+      // fallback：用 GET 圖片請求，不需讀取回應。
+      try {
+        const params = new URLSearchParams();
+
+        params.set('api', 'leaveUser');
+        params.set('payload', JSON.stringify(payload));
+        params.set('_', String(Date.now()));
+
+        const image = new Image();
+        image.src = GAS_API_URL + '?' + params.toString();
+
+      } catch (err) {
+        // 離線失敗時，後端 2 分鐘內會自動視為離線。
+      }
     }
 
     async function submitWord() {
