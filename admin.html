@@ -6,7 +6,9 @@
   <title>文字雲後台</title>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     html,
     body {
@@ -17,7 +19,9 @@
       color: #0f172a;
     }
 
-    body { padding: 18px; }
+    body {
+      padding: 18px;
+    }
 
     .wrap {
       max-width: 1180px;
@@ -48,7 +52,7 @@
       background: white;
       border-radius: 24px;
       padding: 20px;
-      box-shadow: 0 12px 30px rgba(15,23,42,.08);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
       margin-bottom: 16px;
     }
 
@@ -107,7 +111,7 @@
     select:focus,
     textarea:focus {
       border-color: #2563eb;
-      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
     }
 
     .btnRow {
@@ -128,10 +132,21 @@
       cursor: pointer;
     }
 
-    button.secondary { background: #475569; }
-    button.success { background: #16a34a; }
-    button.warning { background: #d97706; }
-    button.danger { background: #dc2626; }
+    button.secondary {
+      background: #475569;
+    }
+
+    button.success {
+      background: #16a34a;
+    }
+
+    button.warning {
+      background: #d97706;
+    }
+
+    button.danger {
+      background: #dc2626;
+    }
 
     button:disabled {
       opacity: .55;
@@ -145,8 +160,13 @@
       min-height: 22px;
     }
 
-    .status.error { color: #dc2626; }
-    .status.success { color: #16a34a; }
+    .status.error {
+      color: #dc2626;
+    }
+
+    .status.success {
+      color: #16a34a;
+    }
 
     .note {
       margin-top: 8px;
@@ -186,7 +206,9 @@
       user-select: none;
     }
 
-    .dragCell:active { cursor: grabbing; }
+    .dragCell:active {
+      cursor: grabbing;
+    }
 
     tr.dragging {
       opacity: .45;
@@ -199,7 +221,9 @@
       background: #eff6ff;
     }
 
-    tr.activeRow { background: #f8fafc; }
+    tr.activeRow {
+      background: #f8fafc;
+    }
 
     .pill {
       display: inline-flex;
@@ -301,7 +325,7 @@
       background: #ffffff;
       border-radius: 28px;
       padding: 22px;
-      box-shadow: 0 28px 90px rgba(0,0,0,.35);
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .35);
     }
 
     .modalHeader {
@@ -338,18 +362,26 @@
     }
 
     @media (max-width: 860px) {
-      body { padding: 12px; }
+      body {
+        padding: 12px;
+      }
 
-      .grid { grid-template-columns: 1fr; }
+      .grid {
+        grid-template-columns: 1fr;
+      }
 
       .top {
         align-items: flex-start;
         flex-direction: column;
       }
 
-      .summaryGrid { grid-template-columns: 1fr 1fr; }
+      .summaryGrid {
+        grid-template-columns: 1fr 1fr;
+      }
 
-      table { font-size: 14px; }
+      table {
+        font-size: 14px;
+      }
 
       .modal {
         border-radius: 22px;
@@ -387,23 +419,25 @@
         <section class="card">
           <div class="cardTitle">活動設定</div>
 
-          <label>活動名稱</label>
+          <label for="sessionName">活動名稱</label>
           <input id="sessionName" />
 
-          <label>系統狀態</label>
+          <label for="systemStatus">系統狀態</label>
           <select id="systemStatus">
             <option value="OPEN">開放中</option>
             <option value="PAUSED">暫停</option>
             <option value="CLOSED">已截止</option>
           </select>
 
-          <label>顯示參與名單</label>
+          <label for="showParticipants">顯示參與名單</label>
           <select id="showParticipants">
             <option value="TRUE">顯示</option>
             <option value="FALSE">隱藏</option>
           </select>
 
-          <div class="note">投影頁固定每 1 秒更新；後台每秒同步即時數字，並定期自動補抓完整資料。</div>
+          <div class="note">
+            後台每秒同步即時數字；題目清單也會自動補抓，不需手動重新整理。
+          </div>
 
           <div class="btnRow">
             <button type="button" onclick="saveSettings()">儲存設定</button>
@@ -477,6 +511,7 @@
                   <th>操作</th>
                 </tr>
               </thead>
+
               <tbody id="questionTable"></tbody>
             </table>
           </div>
@@ -487,6 +522,7 @@
 
         <section class="card">
           <div class="cardTitle">目前文字排行</div>
+
           <div style="overflow:auto;">
             <table>
               <thead>
@@ -495,6 +531,7 @@
                   <th>次數</th>
                 </tr>
               </thead>
+
               <tbody id="wordTable"></tbody>
             </table>
           </div>
@@ -512,17 +549,17 @@
 
       <input id="editQuestionId" type="hidden" />
 
-      <label>題目文字</label>
+      <label for="editQuestionText">題目文字</label>
       <textarea id="editQuestionText" placeholder="輸入題目文字"></textarea>
 
-      <label>題目狀態</label>
+      <label for="editQuestionStatus">題目狀態</label>
       <select id="editQuestionStatus">
         <option value="OPEN">開放</option>
         <option value="CLOSED">關閉</option>
         <option value="DRAFT">草稿</option>
       </select>
 
-      <label>每人最多回應</label>
+      <label for="editMaxResponsesPerUser">每人最多回應</label>
       <select id="editMaxResponsesPerUser">
         <option value="1">1 次</option>
         <option value="2">2 次</option>
@@ -531,7 +568,7 @@
         <option value="5">5 次</option>
       </select>
 
-      <label>回答字數限制</label>
+      <label for="editMaxCharsPerWord">回答字數限制</label>
       <select id="editMaxCharsPerWord">
         <option value="0">無限制</option>
         <option value="10">10 字</option>
@@ -541,19 +578,19 @@
         <option value="100">100 字</option>
       </select>
 
-      <label>是否顯示文字雲</label>
+      <label for="editShowInCloud">是否顯示文字雲</label>
       <select id="editShowInCloud">
         <option value="TRUE">顯示</option>
         <option value="FALSE">不顯示</option>
       </select>
 
-      <label>允許同一人重複送出同詞</label>
+      <label for="editAllowDuplicateWord">允許同一人重複送出同詞</label>
       <select id="editAllowDuplicateWord">
         <option value="FALSE">不允許</option>
         <option value="TRUE">允許</option>
       </select>
 
-      <label>是否需要審核</label>
+      <label for="editNeedApproval">是否需要審核</label>
       <select id="editNeedApproval">
         <option value="FALSE">直接顯示</option>
         <option value="TRUE">需審核</option>
@@ -572,7 +609,7 @@
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
 
     const LIVE_SYNC_MS = 1000;
-    const FULL_SYNC_MS = 10000;
+    const FULL_SYNC_MS = 8000;
     const ERROR_RETRY_MS = 3000;
 
     let adminState = null;
@@ -613,7 +650,8 @@
     }
 
     function setRemoteLink() {
-      document.getElementById('remoteLink').href = new URL('remote.html', window.location.href).toString();
+      document.getElementById('remoteLink').href =
+        new URL('remote.html', window.location.href).toString();
     }
 
     function scheduleNextSync(delay) {
@@ -642,9 +680,7 @@
       syncing = true;
 
       try {
-        const now = Date.now();
-
-        if (!adminState || now - lastFullSyncAt >= FULL_SYNC_MS) {
+        if (!adminState || Date.now() - lastFullSyncAt >= FULL_SYNC_MS) {
           await loadFullState(false, true);
         } else {
           await loadLiveState();
@@ -666,12 +702,15 @@
       adminState = data;
       lastFullSyncAt = Date.now();
       lastLiveSignature = '';
+
       renderFull(data, updateForm);
 
       if (!silent) {
         setMsg('questionStatusMsg', '已同步完整資料', 'success');
+
         setTimeout(() => {
           const el = document.getElementById('questionStatusMsg');
+
           if (el && el.textContent === '已同步完整資料') {
             setMsg('questionStatusMsg', '', '');
           }
@@ -687,6 +726,7 @@
     function renderFull(data, updateForm) {
       if (updateForm) {
         document.getElementById('sessionName').value = data.session.sessionName || '';
+
         document.getElementById('showParticipants').value =
           normalizeBoolean(data.settings.showParticipants, true) ? 'TRUE' : 'FALSE';
       }
@@ -703,7 +743,11 @@
       renderQuestions(data.questions || [], data.activeQuestionId);
       renderWords(data.words || []);
 
-      lastQuestionListSignature = getQuestionListSignature(data.questions || [], data.activeQuestionId);
+      lastQuestionListSignature = getQuestionListSignature(
+        data.questions || [],
+        data.activeQuestionId
+      );
+
       lastLiveSignature = '';
     }
 
@@ -728,10 +772,10 @@
       renderWords(data.words || []);
 
       if (adminState) {
-        adminState.dataVersion = data.dataVersion || adminState.dataVersion;
         adminState.activeQuestionId = data.activeQuestionId || adminState.activeQuestionId;
         adminState.systemStatus = data.systemStatus || adminState.systemStatus;
         adminState.words = data.words || [];
+
         adminState.summary = data.summary || {
           responseCount: data.responseCount || 0,
           approvedCount: data.approvedCount || 0,
@@ -740,13 +784,23 @@
         };
 
         if (Array.isArray(adminState.questions) && data.currentQuestion && data.currentQuestion.questionId) {
-          const idx = adminState.questions.findIndex(q => q.questionId === data.currentQuestion.questionId);
-          if (idx >= 0) {
-            adminState.questions[idx] = Object.assign({}, adminState.questions[idx], data.currentQuestion);
+          const index = adminState.questions.findIndex(q => {
+            return q.questionId === data.currentQuestion.questionId;
+          });
+
+          if (index >= 0) {
+            adminState.questions[index] = Object.assign(
+              {},
+              adminState.questions[index],
+              data.currentQuestion
+            );
           }
         }
 
-        const questionSignature = getQuestionListSignature(adminState.questions || [], data.activeQuestionId);
+        const questionSignature = getQuestionListSignature(
+          adminState.questions || [],
+          data.activeQuestionId
+        );
 
         if (questionSignature !== lastQuestionListSignature) {
           renderQuestions(adminState.questions || [], data.activeQuestionId);
@@ -764,7 +818,6 @@
 
     function getLiveSignature(data) {
       return JSON.stringify({
-        dataVersion: data.dataVersion || '',
         activeQuestionId: data.activeQuestionId || '',
         systemStatus: data.systemStatus || '',
         participantCount: data.participantCount || 0,
@@ -826,7 +879,9 @@
               <strong>${escapeHtml(q.questionText)}</strong>
               ${isActive ? '<div class="pill OPEN">目前題目</div>' : ''}
             </td>
-            <td><span class="pill ${escapeAttr(status)}">${questionStatusText(status)}</span></td>
+            <td>
+              <span class="pill ${escapeAttr(status)}">${questionStatusText(status)}</span>
+            </td>
             <td>
               每人 ${maxResponses} 次<br>
               字數：${maxChars === 0 ? '無限制' : maxChars + ' 字'}
@@ -849,6 +904,7 @@
       }
 
       const row = event.currentTarget;
+
       draggedQuestionId = row.dataset.questionId;
       row.classList.add('dragging');
 
@@ -883,7 +939,9 @@
       const draggedRow = Array.from(tbody.querySelectorAll('tr'))
         .find(row => row.dataset.questionId === draggedQuestionId);
 
-      if (!draggedRow || draggedRow === targetRow) return;
+      if (!draggedRow || draggedRow === targetRow) {
+        return;
+      }
 
       const rect = targetRow.getBoundingClientRect();
       const insertAfter = event.clientY > rect.top + rect.height / 2;
@@ -909,7 +967,9 @@
     }
 
     async function saveQuestionOrderFromDom() {
-      if (sortingBusy) return;
+      if (sortingBusy) {
+        return;
+      }
 
       sortingBusy = true;
       setMsg('sortStatus', '排序儲存中...', '');
@@ -922,7 +982,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('sortStatus', result.message || '排序已儲存', 'success');
 
       } catch (err) {
@@ -967,14 +1029,11 @@
 
       setMsg('editStatusMsg', '', '');
       setMsg('questionStatusMsg', '', '');
+
       openQuestionModal();
     }
 
     function openEditModal(questionId) {
-      openQuestionModalForEdit(questionId);
-    }
-
-    function openQuestionModalForEdit(questionId) {
       const q = (adminState && adminState.questions ? adminState.questions : [])
         .find(item => item.questionId === questionId);
 
@@ -999,12 +1058,16 @@
 
       setMsg('editStatusMsg', '', '');
       setMsg('questionStatusMsg', '', '');
+
       openQuestionModal();
     }
 
     function openQuestionModal() {
       document.getElementById('questionModal').classList.add('show');
-      setTimeout(() => document.getElementById('editQuestionText').focus(), 80);
+
+      setTimeout(() => {
+        document.getElementById('editQuestionText').focus();
+      }, 80);
     }
 
     function closeQuestionModal() {
@@ -1051,12 +1114,15 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
 
-        const successText = questionModalMode === 'edit' ? '已儲存修改' : '題目已新增';
+        const message = questionModalMode === 'edit'
+          ? '已儲存修改'
+          : '題目已新增';
 
-        setMsg('editStatusMsg', successText, 'success');
-        setMsg('questionStatusMsg', successText, 'success');
+        setMsg('editStatusMsg', message, 'success');
+        setMsg('questionStatusMsg', message, 'success');
 
         setTimeout(closeQuestionModal, 350);
 
@@ -1072,7 +1138,10 @@
 
     function setQuestionModalSaving(isSaving) {
       const saveBtn = document.getElementById('questionModalSaveBtn');
-      if (!saveBtn) return;
+
+      if (!saveBtn) {
+        return;
+      }
 
       saveBtn.disabled = !!isSaving;
       saveBtn.textContent = isSaving
@@ -1082,6 +1151,7 @@
 
     async function saveSettings() {
       setMsg('settingStatus', '儲存中...', '');
+
       adminBusy = true;
 
       try {
@@ -1093,7 +1163,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, true);
+
         setMsg('settingStatus', result.message || '設定已儲存', 'success');
 
       } catch (err) {
@@ -1109,15 +1181,8 @@
       adminBusy = true;
 
       try {
-        const result = await gas('setActiveQuestion', questionId);
-
-        if (result.state) {
-          adminState = result.state;
-          lastFullSyncAt = Date.now();
-          renderFull(result.state, false);
-        } else {
-          await loadFullState(false, true);
-        }
+        await gas('setActiveQuestion', questionId);
+        await loadFullState(false, true);
 
       } catch (err) {
         alert(messageOf(err));
@@ -1131,6 +1196,7 @@
     async function clearQuestion(questionId) {
       const q = (adminState && adminState.questions ? adminState.questions : [])
         .find(item => item.questionId === questionId);
+
       const title = q ? q.questionText : '這個題目';
 
       if (!confirm('確定清空「' + title + '」的所有回應與文字統計？\n\n題目本身會保留。')) {
@@ -1144,7 +1210,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('sortStatus', result.message || '題目回應已清空', 'success');
 
       } catch (err) {
@@ -1159,6 +1227,7 @@
     async function removeQuestion(questionId) {
       const q = (adminState && adminState.questions ? adminState.questions : [])
         .find(item => item.questionId === questionId);
+
       const title = q ? q.questionText : '這個題目';
 
       if (!confirm('確定刪除「' + title + '」？\n\n這會同時刪除該題的回應紀錄與文字統計。')) {
@@ -1172,7 +1241,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('sortStatus', result.message || '題目已刪除', 'success');
 
       } catch (err) {
@@ -1188,15 +1259,8 @@
       adminBusy = true;
 
       try {
-        const result = await gas('setSystemStatus', status);
-
-        if (result.state) {
-          adminState = result.state;
-          lastFullSyncAt = Date.now();
-          renderFull(result.state, false);
-        } else {
-          await loadLiveState();
-        }
+        await gas('setSystemStatus', status);
+        await loadLiveState();
 
       } catch (err) {
         alert(messageOf(err));
@@ -1208,9 +1272,12 @@
     }
 
     async function clearCurrent() {
-      if (!confirm('確定清空目前題目的所有回應與文字統計？')) return;
+      if (!confirm('確定清空目前題目的所有回應與文字統計？')) {
+        return;
+      }
 
       setMsg('clearStatus', '清空中...', '');
+
       adminBusy = true;
 
       try {
@@ -1218,7 +1285,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('clearStatus', result.message || '目前題目回應已清空', 'success');
 
       } catch (err) {
@@ -1236,6 +1305,7 @@
       }
 
       setMsg('clearStatus', '清空題目中...', '');
+
       adminBusy = true;
 
       try {
@@ -1243,7 +1313,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('clearStatus', result.message || '全部題目已清空', 'success');
 
       } catch (err) {
@@ -1256,9 +1328,12 @@
     }
 
     async function clearAll() {
-      if (!confirm('確定清空全部參與者、回應、文字統計？題目設定會保留。')) return;
+      if (!confirm('確定清空全部參與者、回應、文字統計？題目設定會保留。')) {
+        return;
+      }
 
       setMsg('clearStatus', '清空中...', '');
+
       adminBusy = true;
 
       try {
@@ -1266,7 +1341,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('clearStatus', result.message || '全部活動資料已清空', 'success');
 
       } catch (err) {
@@ -1280,6 +1357,7 @@
 
     async function rebuildStats() {
       setMsg('clearStatus', '重建中...', '');
+
       adminBusy = true;
 
       try {
@@ -1287,7 +1365,9 @@
 
         adminState = result.state;
         lastFullSyncAt = Date.now();
+
         renderFull(result.state, false);
+
         setMsg('clearStatus', result.message || '統計已重建', 'success');
 
       } catch (err) {
@@ -1303,6 +1383,7 @@
       if (status === 'OPEN') return '開放';
       if (status === 'CLOSED') return '關閉';
       if (status === 'DRAFT') return '草稿';
+
       return status || '';
     }
 
@@ -1316,6 +1397,7 @@
         const script = document.createElement('script');
 
         const params = new URLSearchParams();
+
         params.set('api', api);
         params.set('callback', callbackName);
         params.set('_', String(Date.now()));
@@ -1361,7 +1443,10 @@
 
     function setMsg(id, text, type) {
       const el = document.getElementById(id);
-      if (!el) return;
+
+      if (!el) {
+        return;
+      }
 
       el.textContent = text || '';
       el.className = 'status ' + (type || '');
@@ -1379,15 +1464,18 @@
 
       const text = String(value == null ? '' : value).trim().toUpperCase();
 
-      if (text === 'TRUE' || text === 'YES' || text === 'Y' || text === '1') return true;
-      if (text === 'FALSE' || text === 'NO' || text === 'N' || text === '0') return false;
+      if (['TRUE', 'YES', 'Y', '1'].includes(text)) return true;
+      if (['FALSE', 'NO', 'N', '0'].includes(text)) return false;
 
       return !!defaultValue;
     }
 
     function toNumber(value, defaultValue) {
-      const n = Number(value);
-      return Number.isFinite(n) ? n : defaultValue;
+      const number = Number(value);
+
+      return Number.isFinite(number)
+        ? number
+        : defaultValue;
     }
 
     function escapeHtml(value) {
@@ -1408,13 +1496,11 @@
     }
 
     function escapeJsAttr(value) {
-      const jsEscaped = String(value == null ? '')
+      return String(value == null ? '' : value)
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'")
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n');
-
-      return escapeAttr(jsEscaped);
     }
   </script>
 </body>
