@@ -255,6 +255,10 @@
       color: #fecaca;
     }
 
+    .message.success {
+      color: #bbf7d0;
+    }
+
     @media (max-width: 420px) {
       body {
         padding: 12px;
@@ -304,10 +308,12 @@
           <div id="participantCount" class="statNum">0</div>
           <div class="statLabel">參與</div>
         </div>
+
         <div class="statItem">
           <div id="responseCount" class="statNum">0</div>
           <div class="statLabel">回應</div>
         </div>
+
         <div class="statItem">
           <div id="uniqueWordCount" class="statNum">0</div>
           <div class="statLabel">文字</div>
@@ -343,39 +349,77 @@
   <script>
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
 
+    const SYNC_INTERVAL_MS = 1000;
+    const ERROR_RETRY_MS = 2500;
+
     let remoteState = null;
-    let busy = false;
-    let timer = null;
+    let actionBusy = false;
+    let syncing = false;
+    let syncTimer = null;
+    let lastRenderSignature = '';
 
     document.addEventListener('DOMContentLoaded', () => {
-      refresh();
-      timer = setInterval(refresh, 1000);
+      syncRemoteState();
     });
 
-    async function refresh() {
-      if (busy) return;
+    window.addEventListener('beforeunload', () => {
+      if (syncTimer) {
+        clearTimeout(syncTimer);
+      }
+    });
+
+    function scheduleNextSync(delay) {
+      if (syncTimer) {
+        clearTimeout(syncTimer);
+      }
+
+      syncTimer = setTimeout(syncRemoteState, delay || SYNC_INTERVAL_MS);
+    }
+
+    async function syncRemoteState() {
+      if (syncing || actionBusy) {
+        scheduleNextSync(500);
+        return;
+      }
+
+      syncing = true;
 
       try {
         const data = await gas('getRemoteState');
 
         remoteState = data;
         render(data);
-        setMessage('已同步', false);
+        setMessage('已同步', false, true);
+        scheduleNextSync(SYNC_INTERVAL_MS);
 
       } catch (err) {
-        setMessage(messageOf(err), true);
+        setMessage(messageOf(err), true, false);
+        scheduleNextSync(ERROR_RETRY_MS);
+
+      } finally {
+        syncing = false;
       }
     }
 
     function render(data) {
-      const activeQuestion = (data.questions || []).find(q => q.questionId === data.activeQuestionId) || {};
+      updateSyncTime();
+
+      const signature = getRenderSignature(data);
+
+      if (signature === lastRenderSignature) {
+        return;
+      }
+
+      lastRenderSignature = signature;
+
+      const activeQuestion =
+        (data.questions || []).find(q => q.questionId === data.activeQuestionId) ||
+        data.currentQuestion ||
+        {};
 
       const statusPill = document.getElementById('statusPill');
       statusPill.textContent = statusText(data.systemStatus);
-      statusPill.className = 'statusPill ' + data.systemStatus;
-
-      document.getElementById('updatedAt').textContent =
-        new Date().toLocaleTimeString('zh-TW', { hour12: false });
+      statusPill.className = 'statusPill ' + safeStatusClass(data.systemStatus);
 
       document.getElementById('questionNo').textContent =
         activeQuestion.questionNo ? '第 ' + activeQuestion.questionNo + ' 題' : '目前題目';
@@ -383,11 +427,40 @@
       document.getElementById('questionText').textContent =
         activeQuestion.questionText || '尚未設定題目';
 
-      document.getElementById('participantCount').textContent = data.participantCount || 0;
-      document.getElementById('responseCount').textContent = data.responseCount || 0;
-      document.getElementById('uniqueWordCount').textContent = data.uniqueWordCount || 0;
+      document.getElementById('participantCount').textContent =
+        toSafeNumber(data.participantCount);
+
+      document.getElementById('responseCount').textContent =
+        toSafeNumber(data.responseCount);
+
+      document.getElementById('uniqueWordCount').textContent =
+        toSafeNumber(data.uniqueWordCount);
 
       renderQuestionList(data.questions || [], data.activeQuestionId);
+    }
+
+    function getRenderSignature(data) {
+      const questions = (data.questions || []).map(q => ({
+        id: q.questionId || '',
+        no: q.questionNo || 0,
+        text: q.questionText || '',
+        status: q.status || ''
+      }));
+
+      return JSON.stringify({
+        dataVersion: data.dataVersion || '',
+        activeQuestionId: data.activeQuestionId || '',
+        systemStatus: data.systemStatus || '',
+        participantCount: data.participantCount || 0,
+        responseCount: data.responseCount || 0,
+        uniqueWordCount: data.uniqueWordCount || 0,
+        questions
+      });
+    }
+
+    function updateSyncTime() {
+      document.getElementById('updatedAt').textContent =
+        new Date().toLocaleTimeString('zh-TW', { hour12: false });
     }
 
     function renderQuestionList(questions, activeQuestionId) {
@@ -398,91 +471,122 @@
         return;
       }
 
-      box.innerHTML = questions.map(q => `
-        <button
-          type="button"
-          class="questionItem ${q.questionId === activeQuestionId ? 'active' : ''}"
-          onclick="activateQuestion('${escapeJsAttr(q.questionId)}')"
-        >
-          <div class="questionItemTop">
-            <span>第 ${escapeHtml(q.questionNo)} 題</span>
-            <span>${q.questionId === activeQuestionId ? '目前題目' : questionStatusText(q.status)}</span>
-          </div>
-          <div class="questionItemText">${escapeHtml(q.questionText)}</div>
-        </button>
-      `).join('');
+      box.innerHTML = questions.map(q => {
+        const isActive = q.questionId === activeQuestionId;
+
+        return `
+          <button
+            type="button"
+            class="questionItem ${isActive ? 'active' : ''}"
+            onclick="activateQuestion('${escapeJsAttr(q.questionId)}')"
+            ${actionBusy ? 'disabled' : ''}
+          >
+            <div class="questionItemTop">
+              <span>第 ${escapeHtml(q.questionNo)} 題</span>
+              <span>${isActive ? '目前題目' : questionStatusText(q.status)}</span>
+            </div>
+            <div class="questionItemText">${escapeHtml(q.questionText)}</div>
+          </button>
+        `;
+      }).join('');
     }
 
     async function changeStatus(status) {
-      if (busy) return;
+      if (actionBusy) return;
 
       setBusy(true);
+      setMessage('狀態更新中...', false, false);
 
       try {
         const result = await gas('setSystemStatus', status);
+        const nextState = result.remoteState || await gas('getRemoteState');
 
-        remoteState = result.remoteState;
-        render(result.remoteState);
-        setMessage(result.message, false);
+        remoteState = nextState;
+        lastRenderSignature = '';
+        render(nextState);
+        setMessage(result.message || '系統狀態已更新', false, true);
 
       } catch (err) {
-        setMessage(messageOf(err), true);
+        setMessage(messageOf(err), true, false);
+
       } finally {
         setBusy(false);
+        scheduleNextSync(SYNC_INTERVAL_MS);
       }
     }
 
     async function switchDirection(direction) {
-      if (busy) return;
+      if (actionBusy) return;
 
       setBusy(true);
+      setMessage('題目切換中...', false, false);
 
       try {
         const result = await gas('setActiveQuestionByDirection', direction);
+        const nextState = result.remoteState || await gas('getRemoteState');
 
-        remoteState = result.remoteState;
-        render(result.remoteState);
-        setMessage(result.message, false);
+        remoteState = nextState;
+        lastRenderSignature = '';
+        render(nextState);
+        setMessage(result.message || '題目已切換', false, true);
 
       } catch (err) {
-        setMessage(messageOf(err), true);
+        setMessage(messageOf(err), true, false);
+
       } finally {
         setBusy(false);
+        scheduleNextSync(SYNC_INTERVAL_MS);
       }
     }
 
     async function activateQuestion(questionId) {
-      if (busy) return;
+      if (actionBusy) return;
 
       setBusy(true);
+      setMessage('題目切換中...', false, false);
 
       try {
         const result = await gas('setActiveQuestion', questionId);
+        const nextState = result.remoteState || await gas('getRemoteState';
 
-        remoteState = result.remoteState;
-        render(result.remoteState);
-        setMessage(result.message, false);
+        remoteState = nextState;
+        lastRenderSignature = '';
+        render(nextState);
+        setMessage(result.message || '目前題目已切換', false, true);
 
       } catch (err) {
-        setMessage(messageOf(err), true);
+        setMessage(messageOf(err), true, false);
+
       } finally {
         setBusy(false);
+        scheduleNextSync(SYNC_INTERVAL_MS);
       }
     }
 
     function setBusy(value) {
-      busy = value;
+      actionBusy = !!value;
 
       ['openBtn', 'pauseBtn', 'closeBtn', 'prevBtn', 'nextBtn'].forEach(id => {
         const btn = document.getElementById(id);
-        if (btn) btn.disabled = value;
+        if (btn) btn.disabled = actionBusy;
+      });
+
+      document.querySelectorAll('.questionItem').forEach(btn => {
+        btn.disabled = actionBusy;
       });
     }
 
-    function setMessage(text, isError) {
+    function setMessage(text, isError, isSuccess) {
       const el = document.getElementById('message');
       el.textContent = text || '';
-      el.className = 'message ' + (isError ? 'error' : '');
+
+      if (isError) {
+        el.className = 'message error';
+      } else if (isSuccess) {
+        el.className = 'message success';
+      } else {
+        el.className = 'message';
+      }
     }
 
     function statusText(status) {
@@ -490,6 +594,13 @@
       if (status === 'PAUSED') return '暫停作答';
       if (status === 'CLOSED') return '已截止';
       return status || '';
+    }
+
+    function safeStatusClass(status) {
+      if (status === 'OPEN') return 'OPEN';
+      if (status === 'PAUSED') return 'PAUSED';
+      if (status === 'CLOSED') return 'CLOSED';
+      return '';
     }
 
     function questionStatusText(status) {
@@ -525,7 +636,10 @@
         function cleanup() {
           clearTimeout(timer);
           delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
+
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
         }
 
         window[callbackName] = data => {
@@ -555,8 +669,13 @@
         : '發生錯誤';
     }
 
+    function toSafeNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    }
+
     function escapeHtml(value) {
-      return String(value || '')
+      return String(value == null ? '' : value)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
