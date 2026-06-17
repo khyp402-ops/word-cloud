@@ -261,11 +261,20 @@
   <script>
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
 
+    const USER_SYNC_MS = 2500;
+    const USER_SYNC_ERROR_MS = 4000;
+    const ACTIVE_HEARTBEAT_MS = 60000;
+
     const state = {
       clientId: '',
       nickname: '',
       joined: false,
-      timer: null
+      syncing: false,
+      submitBusy: false,
+      syncTimer: null,
+      heartbeatTimer: null,
+      lastRenderSignature: '',
+      lastUserData: null
     };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -284,6 +293,11 @@
       document.getElementById('wordInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') submitWord();
       });
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (state.syncTimer) clearTimeout(state.syncTimer);
+      if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
     });
 
     async function join() {
@@ -316,21 +330,46 @@
         document.getElementById('joinCard').classList.add('hidden');
         document.getElementById('mainArea').classList.remove('hidden');
 
-        renderUserState(result.state);
+        state.lastRenderSignature = '';
+        renderUserState(result.state, true);
 
-        clearInterval(state.timer);
-        state.timer = setInterval(refreshUserState, 3000);
+        startAutoSync();
+        startActiveHeartbeat();
 
       } catch (err) {
         setMsg('joinStatus', messageOf(err), 'error');
+
       } finally {
         btn.disabled = false;
         btn.textContent = '進入';
       }
     }
 
+    function startAutoSync() {
+      if (state.syncTimer) {
+        clearTimeout(state.syncTimer);
+      }
+
+      scheduleUserSync(USER_SYNC_MS);
+    }
+
+    function scheduleUserSync(delay) {
+      if (state.syncTimer) {
+        clearTimeout(state.syncTimer);
+      }
+
+      state.syncTimer = setTimeout(refreshUserState, delay || USER_SYNC_MS);
+    }
+
     async function refreshUserState() {
       if (!state.joined) return;
+
+      if (state.syncing) {
+        scheduleUserSync(800);
+        return;
+      }
+
+      state.syncing = true;
 
       try {
         const result = await gas('getUserState', {
@@ -338,16 +377,41 @@
           nickname: state.nickname
         });
 
-        renderUserState(result);
+        renderUserState(result, false);
+        scheduleUserSync(USER_SYNC_MS);
+
       } catch (err) {
         setMsg('sendStatus', '同步失敗，系統會自動重試', 'error');
+        scheduleUserSync(USER_SYNC_ERROR_MS);
+
+      } finally {
+        state.syncing = false;
       }
     }
 
+    function startActiveHeartbeat() {
+      if (state.heartbeatTimer) {
+        clearInterval(state.heartbeatTimer);
+      }
+
+      state.heartbeatTimer = setInterval(() => {
+        if (!state.joined || !state.clientId || !state.nickname) return;
+
+        gas('touchUserActive', {
+          clientId: state.clientId,
+          nickname: state.nickname
+        }).catch(() => {
+          // 活躍狀態更新失敗不干擾使用者作答。
+        });
+
+      }, ACTIVE_HEARTBEAT_MS);
+    }
+
     async function submitWord() {
+      if (state.submitBusy) return;
+
       const input = document.getElementById('wordInput');
       const text = input.value.trim();
-      const btn = document.getElementById('sendBtn');
 
       setMsg('sendStatus', '', '');
 
@@ -356,8 +420,9 @@
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = '送出中...';
+      state.submitBusy = true;
+      applySendAvailability();
+      document.getElementById('sendBtn').textContent = '送出中...';
 
       try {
         const result = await gas('submitUserResponse', {
@@ -369,19 +434,36 @@
         input.value = '';
         input.focus();
 
-        renderUserState(result.state);
-        setMsg('sendStatus', result.message, 'success');
+        state.lastRenderSignature = '';
+        renderUserState(result.state, true);
+        setMsg('sendStatus', result.message || '送出成功', 'success');
 
       } catch (err) {
         setMsg('sendStatus', messageOf(err), 'error');
+
       } finally {
-        btn.disabled = false;
-        btn.textContent = '送出';
+        state.submitBusy = false;
+        document.getElementById('sendBtn').textContent = '送出';
+        applySendAvailability();
       }
     }
 
-    function renderUserState(data) {
+    function renderUserState(data, forceRender) {
+      if (!data) return;
+
+      state.lastUserData = data;
+
+      const signature = getUserRenderSignature(data);
+
+      if (!forceRender && signature === state.lastRenderSignature) {
+        applySendAvailability();
+        return;
+      }
+
+      state.lastRenderSignature = signature;
+
       const q = data.question || {};
+      const user = data.user || {};
 
       document.getElementById('questionNo').textContent =
         q.questionNo ? '第 ' + q.questionNo + ' 題' : '目前題目';
@@ -390,24 +472,89 @@
         q.questionText || '尚未設定題目';
 
       document.getElementById('nicknameDisplay').textContent =
-        state.nickname || data.user.nickname || '-';
+        state.nickname || user.nickname || '-';
 
       document.getElementById('remainingDisplay').textContent =
-        data.user.remaining === null ? '不限' : data.user.remaining;
+        user.remaining === null ? '不限' : user.remaining;
 
+      const wordInput = document.getElementById('wordInput');
+      const maxChars = Number(q.maxCharsPerWord || 0);
+
+      if (maxChars > 0) {
+        wordInput.maxLength = String(maxChars);
+        wordInput.placeholder = '最多 ' + maxChars + ' 字';
+      } else {
+        wordInput.maxLength = '200';
+        wordInput.placeholder = '輸入後按送出';
+      }
+
+      renderHistory(data.ownResponses || []);
+      applySendAvailability();
+    }
+
+    function getUserRenderSignature(data) {
+      const q = data.question || {};
+      const user = data.user || {};
+      const responses = (data.ownResponses || []).map(item => ({
+        text: item.rawText || '',
+        status: item.status || '',
+        rejectReason: item.rejectReason || ''
+      }));
+
+      return JSON.stringify({
+        dataVersion: data.dataVersion || '',
+        systemStatus: data.systemStatus || '',
+        questionId: q.questionId || '',
+        questionNo: q.questionNo || 0,
+        questionText: q.questionText || '',
+        questionStatus: q.status || '',
+        remaining: user.remaining,
+        usedCount: user.usedCount || 0,
+        responses
+      });
+    }
+
+    function applySendAvailability() {
       const sendBtn = document.getElementById('sendBtn');
+      const data = state.lastUserData;
+      const q = data && data.question ? data.question : {};
+      const user = data && data.user ? data.user : {};
+
+      if (state.submitBusy) {
+        sendBtn.disabled = true;
+        return;
+      }
+
+      if (!data) {
+        sendBtn.disabled = true;
+        return;
+      }
 
       if (data.systemStatus !== 'OPEN' || q.status !== 'OPEN') {
         sendBtn.disabled = true;
         setMsg('sendStatus', '目前尚未開放送出', 'error');
-      } else if (data.user.remaining !== null && data.user.remaining <= 0) {
-        sendBtn.disabled = true;
-        setMsg('sendStatus', '你已達本題送出上限', 'error');
-      } else {
-        sendBtn.disabled = false;
+        return;
       }
 
-      renderHistory(data.ownResponses || []);
+      if (user.remaining !== null && Number(user.remaining) <= 0) {
+        sendBtn.disabled = true;
+        setMsg('sendStatus', '你已達本題送出上限', 'error');
+        return;
+      }
+
+      sendBtn.disabled = false;
+
+      const currentStatus = document.getElementById('sendStatus');
+      if (
+        currentStatus &&
+        (
+          currentStatus.textContent === '目前尚未開放送出' ||
+          currentStatus.textContent === '你已達本題送出上限' ||
+          currentStatus.textContent === '同步失敗，系統會自動重試'
+        )
+      ) {
+        setMsg('sendStatus', '', '');
+      }
     }
 
     function renderHistory(items) {
@@ -421,7 +568,7 @@
       box.innerHTML = items.map(item => `
         <div class="historyItem">
           <span>${escapeHtml(item.rawText)}</span>
-          <span class="badge ${item.status}">${statusText(item.status)}</span>
+          <span class="badge ${escapeAttr(item.status)}">${statusText(item.status)}</span>
         </div>
       `).join('');
     }
@@ -470,7 +617,10 @@
         function cleanup() {
           clearTimeout(timer);
           delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
+
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
         }
 
         window[callbackName] = data => {
@@ -497,6 +647,7 @@
     function setMsg(id, text, type) {
       const el = document.getElementById(id);
       if (!el) return;
+
       el.textContent = text || '';
       el.className = 'status ' + (type || '');
     }
@@ -508,12 +659,20 @@
     }
 
     function escapeHtml(value) {
-      return String(value || '')
+      return String(value == null ? '' : value)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     }
   </script>
 </body>
