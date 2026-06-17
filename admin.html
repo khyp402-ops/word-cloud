@@ -410,7 +410,6 @@
         <button type="button" onclick="refresh()">重新整理</button>
         <button type="button" class="success" onclick="applySystemStatus('OPEN')">開放送出</button>
         <button type="button" class="warning" onclick="applySystemStatus('PAUSED')">暫停送出</button>
-        <button type="button" class="danger" onclick="applySystemStatus('CLOSED')">截止</button>
       </div>
     </header>
 
@@ -426,7 +425,6 @@
           <select id="systemStatus">
             <option value="OPEN">開放中</option>
             <option value="PAUSED">暫停</option>
-            <option value="CLOSED">已截止</option>
           </select>
 
           <label for="showParticipants">顯示參與名單</label>
@@ -436,7 +434,7 @@
           </select>
 
           <div class="note">
-            後台每秒同步即時數字；題目清單也會自動補抓，不需手動重新整理。
+            
           </div>
 
           <div class="btnRow">
@@ -654,6 +652,10 @@
         new URL('remote.html', window.location.href).toString();
     }
 
+    function normalizeSystemStatusForUi(status) {
+      return status === 'OPEN' ? 'OPEN' : 'PAUSED';
+    }
+
     function scheduleNextSync(delay) {
       if (autoTimer) {
         clearTimeout(autoTimer);
@@ -731,7 +733,8 @@
           normalizeBoolean(data.settings.showParticipants, true) ? 'TRUE' : 'FALSE';
       }
 
-      document.getElementById('systemStatus').value = data.systemStatus || 'OPEN';
+      document.getElementById('systemStatus').value =
+        normalizeSystemStatusForUi(data.systemStatus);
 
       renderSummary({
         participantCount: Array.isArray(data.participants) ? data.participants.length : 0,
@@ -760,7 +763,8 @@
 
       lastLiveSignature = signature;
 
-      document.getElementById('systemStatus').value = data.systemStatus || 'OPEN';
+      document.getElementById('systemStatus').value =
+        normalizeSystemStatusForUi(data.systemStatus);
 
       renderSummary({
         participantCount: data.participantCount || 0,
