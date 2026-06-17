@@ -403,7 +403,7 @@
             <option value="FALSE">隱藏</option>
           </select>
 
-          <div class="note">投影頁固定每 1 秒更新，不再另外設定秒數。</div>
+          <div class="note">投影頁固定每 1 秒更新；後台每秒同步即時數字，並定期自動補抓完整資料。</div>
 
           <div class="btnRow">
             <button type="button" onclick="saveSettings()">儲存設定</button>
@@ -571,18 +571,22 @@
   <script>
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTI59BqySn3IyAAq12ihYPoC6qinlx4cr4YA5lE2m8ZkdlumzvhYEDy2EPgRyjJnFv/exec';
 
+    const LIVE_SYNC_MS = 1000;
+    const FULL_SYNC_MS = 10000;
+    const ERROR_RETRY_MS = 3000;
+
     let adminState = null;
     let draggedQuestionId = null;
     let sortingBusy = false;
     let adminBusy = false;
+    let syncing = false;
     let autoTimer = null;
     let questionModalMode = 'create';
+    let lastFullSyncAt = 0;
+    let lastLiveSignature = '';
+    let lastQuestionListSignature = '';
 
-    document.addEventListener('DOMContentLoaded', () => {
-      setRemoteLink();
-      refresh();
-      autoTimer = setInterval(syncAdminState, 1000);
-    });
+    document.addEventListener('DOMContentLoaded', boot);
 
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
@@ -590,38 +594,98 @@
       }
     });
 
+    window.addEventListener('beforeunload', () => {
+      if (autoTimer) {
+        clearTimeout(autoTimer);
+      }
+    });
+
+    async function boot() {
+      setRemoteLink();
+
+      try {
+        await loadFullState(true, false);
+        scheduleNextSync(LIVE_SYNC_MS);
+      } catch (err) {
+        alert(messageOf(err));
+        scheduleNextSync(ERROR_RETRY_MS);
+      }
+    }
+
     function setRemoteLink() {
       document.getElementById('remoteLink').href = new URL('remote.html', window.location.href).toString();
     }
 
+    function scheduleNextSync(delay) {
+      if (autoTimer) {
+        clearTimeout(autoTimer);
+      }
+
+      autoTimer = setTimeout(syncAdminState, delay || LIVE_SYNC_MS);
+    }
+
     async function refresh() {
       try {
-        const data = await gas('getAdminState');
-
-        adminState = data;
-        render(data, true);
-
+        await loadFullState(true, false);
+        scheduleNextSync(LIVE_SYNC_MS);
       } catch (err) {
         alert(messageOf(err));
       }
     }
 
     async function syncAdminState() {
-      if (adminBusy || sortingBusy) return;
+      if (adminBusy || sortingBusy || syncing) {
+        scheduleNextSync(600);
+        return;
+      }
+
+      syncing = true;
 
       try {
-        const data = await gas('getAdminState');
+        const now = Date.now();
 
-        adminState = data;
-        render(data, false);
+        if (!adminState || now - lastFullSyncAt >= FULL_SYNC_MS) {
+          await loadFullState(false, true);
+        } else {
+          await loadLiveState();
+        }
+
+        scheduleNextSync(LIVE_SYNC_MS);
 
       } catch (err) {
-        // 自動同步失敗不跳警告
+        scheduleNextSync(ERROR_RETRY_MS);
+
+      } finally {
+        syncing = false;
       }
     }
 
-    function render(data, fullRender) {
-      if (fullRender) {
+    async function loadFullState(updateForm, silent) {
+      const data = await gas('getAdminState');
+
+      adminState = data;
+      lastFullSyncAt = Date.now();
+      lastLiveSignature = '';
+      renderFull(data, updateForm);
+
+      if (!silent) {
+        setMsg('questionStatusMsg', '已同步完整資料', 'success');
+        setTimeout(() => {
+          const el = document.getElementById('questionStatusMsg');
+          if (el && el.textContent === '已同步完整資料') {
+            setMsg('questionStatusMsg', '', '');
+          }
+        }, 900);
+      }
+    }
+
+    async function loadLiveState() {
+      const data = await gas('getAdminLiveState');
+      renderLive(data);
+    }
+
+    function renderFull(data, updateForm) {
+      if (updateForm) {
         document.getElementById('sessionName').value = data.session.sessionName || '';
         document.getElementById('showParticipants').value =
           normalizeBoolean(data.settings.showParticipants, true) ? 'TRUE' : 'FALSE';
@@ -629,13 +693,105 @@
 
       document.getElementById('systemStatus').value = data.systemStatus || 'OPEN';
 
-      document.getElementById('participantCount').textContent = Array.isArray(data.participants) ? data.participants.length : 0;
-      document.getElementById('responseCount').textContent = data.summary && data.summary.responseCount ? data.summary.responseCount : 0;
-      document.getElementById('approvedCount').textContent = data.summary && data.summary.approvedCount ? data.summary.approvedCount : 0;
-      document.getElementById('uniqueWordCount').textContent = Array.isArray(data.words) ? data.words.length : 0;
+      renderSummary({
+        participantCount: Array.isArray(data.participants) ? data.participants.length : 0,
+        responseCount: data.summary && data.summary.responseCount ? data.summary.responseCount : 0,
+        approvedCount: data.summary && data.summary.approvedCount ? data.summary.approvedCount : 0,
+        uniqueWordCount: Array.isArray(data.words) ? data.words.length : 0
+      });
 
       renderQuestions(data.questions || [], data.activeQuestionId);
       renderWords(data.words || []);
+
+      lastQuestionListSignature = getQuestionListSignature(data.questions || [], data.activeQuestionId);
+      lastLiveSignature = '';
+    }
+
+    function renderLive(data) {
+      const signature = getLiveSignature(data);
+
+      if (signature === lastLiveSignature) {
+        return;
+      }
+
+      lastLiveSignature = signature;
+
+      document.getElementById('systemStatus').value = data.systemStatus || 'OPEN';
+
+      renderSummary({
+        participantCount: data.participantCount || 0,
+        responseCount: data.responseCount || 0,
+        approvedCount: data.approvedCount || 0,
+        uniqueWordCount: data.uniqueWordCount || 0
+      });
+
+      renderWords(data.words || []);
+
+      if (adminState) {
+        adminState.dataVersion = data.dataVersion || adminState.dataVersion;
+        adminState.activeQuestionId = data.activeQuestionId || adminState.activeQuestionId;
+        adminState.systemStatus = data.systemStatus || adminState.systemStatus;
+        adminState.words = data.words || [];
+        adminState.summary = data.summary || {
+          responseCount: data.responseCount || 0,
+          approvedCount: data.approvedCount || 0,
+          pendingCount: data.pendingCount || 0,
+          rejectedCount: data.rejectedCount || 0
+        };
+
+        if (Array.isArray(adminState.questions) && data.currentQuestion && data.currentQuestion.questionId) {
+          const idx = adminState.questions.findIndex(q => q.questionId === data.currentQuestion.questionId);
+          if (idx >= 0) {
+            adminState.questions[idx] = Object.assign({}, adminState.questions[idx], data.currentQuestion);
+          }
+        }
+
+        const questionSignature = getQuestionListSignature(adminState.questions || [], data.activeQuestionId);
+
+        if (questionSignature !== lastQuestionListSignature) {
+          renderQuestions(adminState.questions || [], data.activeQuestionId);
+          lastQuestionListSignature = questionSignature;
+        }
+      }
+    }
+
+    function renderSummary(data) {
+      document.getElementById('participantCount').textContent = toNumber(data.participantCount, 0);
+      document.getElementById('responseCount').textContent = toNumber(data.responseCount, 0);
+      document.getElementById('approvedCount').textContent = toNumber(data.approvedCount, 0);
+      document.getElementById('uniqueWordCount').textContent = toNumber(data.uniqueWordCount, 0);
+    }
+
+    function getLiveSignature(data) {
+      return JSON.stringify({
+        dataVersion: data.dataVersion || '',
+        activeQuestionId: data.activeQuestionId || '',
+        systemStatus: data.systemStatus || '',
+        participantCount: data.participantCount || 0,
+        responseCount: data.responseCount || 0,
+        approvedCount: data.approvedCount || 0,
+        uniqueWordCount: data.uniqueWordCount || 0,
+        words: (data.words || []).map(w => ({
+          text: w.text || '',
+          count: Number(w.count || 0)
+        })),
+        currentQuestion: data.currentQuestion || {}
+      });
+    }
+
+    function getQuestionListSignature(questions, activeQuestionId) {
+      return JSON.stringify({
+        activeQuestionId: activeQuestionId || '',
+        questions: (questions || []).map(q => ({
+          id: q.questionId || '',
+          no: q.questionNo || 0,
+          text: q.questionText || '',
+          status: q.status || '',
+          maxResponses: q.maxResponsesPerUser || 0,
+          maxChars: q.maxCharsPerWord || 0,
+          showInCloud: !!q.showInCloud
+        }))
+      });
     }
 
     function renderQuestions(items, activeQuestionId) {
@@ -651,12 +807,13 @@
         const status = q.status || '';
         const maxChars = toNumber(q.maxCharsPerWord, 0);
         const maxResponses = toNumber(q.maxResponsesPerUser, 3);
+        const isActive = questionId === activeQuestionId;
 
         return `
           <tr
             draggable="true"
             data-question-id="${escapeAttr(questionId)}"
-            class="${questionId === activeQuestionId ? 'activeRow' : ''}"
+            class="${isActive ? 'activeRow' : ''}"
             ondragstart="handleDragStart(event)"
             ondragover="handleDragOver(event)"
             ondragleave="handleDragLeave(event)"
@@ -667,7 +824,7 @@
             <td>${escapeHtml(q.questionNo)}</td>
             <td>
               <strong>${escapeHtml(q.questionText)}</strong>
-              ${questionId === activeQuestionId ? '<div class="pill OPEN">目前題目</div>' : ''}
+              ${isActive ? '<div class="pill OPEN">目前題目</div>' : ''}
             </td>
             <td><span class="pill ${escapeAttr(status)}">${questionStatusText(status)}</span></td>
             <td>
@@ -764,12 +921,14 @@
         const result = await gas('reorderQuestions', ids);
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('sortStatus', result.message || '排序已儲存', 'success');
 
       } catch (err) {
         setMsg('sortStatus', messageOf(err), 'error');
         refresh();
+
       } finally {
         sortingBusy = false;
       }
@@ -891,7 +1050,8 @@
         });
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
 
         const successText = questionModalMode === 'edit' ? '已儲存修改' : '題目已新增';
 
@@ -902,9 +1062,11 @@
 
       } catch (err) {
         setMsg('editStatusMsg', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
         setQuestionModalSaving(false);
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -930,13 +1092,16 @@
         });
 
         adminState = result.state;
-        render(result.state, true);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, true);
         setMsg('settingStatus', result.message || '設定已儲存', 'success');
 
       } catch (err) {
         setMsg('settingStatus', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -946,13 +1111,20 @@
       try {
         const result = await gas('setActiveQuestion', questionId);
 
-        adminState = result.state;
-        render(result.state, false);
+        if (result.state) {
+          adminState = result.state;
+          lastFullSyncAt = Date.now();
+          renderFull(result.state, false);
+        } else {
+          await loadFullState(false, true);
+        }
 
       } catch (err) {
         alert(messageOf(err));
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -971,13 +1143,16 @@
         const result = await gas('clearQuestionDataById', questionId);
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('sortStatus', result.message || '題目回應已清空', 'success');
 
       } catch (err) {
         alert(messageOf(err));
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -996,13 +1171,16 @@
         const result = await gas('deleteQuestion', questionId);
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('sortStatus', result.message || '題目已刪除', 'success');
 
       } catch (err) {
         alert(messageOf(err));
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1012,13 +1190,20 @@
       try {
         const result = await gas('setSystemStatus', status);
 
-        adminState = result.state;
-        render(result.state, false);
+        if (result.state) {
+          adminState = result.state;
+          lastFullSyncAt = Date.now();
+          renderFull(result.state, false);
+        } else {
+          await loadLiveState();
+        }
 
       } catch (err) {
         alert(messageOf(err));
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1032,13 +1217,16 @@
         const result = await gas('clearCurrentQuestionData');
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('clearStatus', result.message || '目前題目回應已清空', 'success');
 
       } catch (err) {
         setMsg('clearStatus', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1054,13 +1242,16 @@
         const result = await gas('clearAllQuestions');
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('clearStatus', result.message || '全部題目已清空', 'success');
 
       } catch (err) {
         setMsg('clearStatus', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1074,13 +1265,16 @@
         const result = await gas('clearAllActivityData');
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('clearStatus', result.message || '全部活動資料已清空', 'success');
 
       } catch (err) {
         setMsg('clearStatus', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1092,13 +1286,16 @@
         const result = await gas('rebuildCurrentStats');
 
         adminState = result.state;
-        render(result.state, false);
+        lastFullSyncAt = Date.now();
+        renderFull(result.state, false);
         setMsg('clearStatus', result.message || '統計已重建', 'success');
 
       } catch (err) {
         setMsg('clearStatus', messageOf(err), 'error');
+
       } finally {
         adminBusy = false;
+        scheduleNextSync(LIVE_SYNC_MS);
       }
     }
 
@@ -1135,7 +1332,10 @@
         function cleanup() {
           clearTimeout(timer);
           delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
+
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
         }
 
         window[callbackName] = data => {
@@ -1208,7 +1408,7 @@
     }
 
     function escapeJsAttr(value) {
-      const jsEscaped = String(value == null ? '' : value)
+      const jsEscaped = String(value == null ? '')
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'")
         .replace(/\r/g, '\\r')
