@@ -6,7 +6,9 @@
   <title>文字雲輸入</title>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     html,
     body {
@@ -17,7 +19,9 @@
       color: #0f172a;
     }
 
-    body { padding: 18px; }
+    body {
+      padding: 18px;
+    }
 
     .page {
       max-width: 620px;
@@ -28,7 +32,7 @@
       background: #ffffff;
       border-radius: 28px;
       padding: 24px;
-      box-shadow: 0 18px 40px rgba(0,0,0,.28);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, .28);
       margin-bottom: 16px;
     }
 
@@ -67,7 +71,7 @@
 
     input:focus {
       border-color: #2563eb;
-      box-shadow: 0 0 0 5px rgba(37,99,235,.14);
+      box-shadow: 0 0 0 5px rgba(37, 99, 235, .14);
     }
 
     button {
@@ -88,7 +92,9 @@
       cursor: not-allowed;
     }
 
-    .hidden { display: none !important; }
+    .hidden {
+      display: none !important;
+    }
 
     .questionBox {
       background: linear-gradient(135deg, #1d4ed8, #2563eb);
@@ -144,8 +150,13 @@
       color: #64748b;
     }
 
-    .status.error { color: #dc2626; }
-    .status.success { color: #16a34a; }
+    .status.error {
+      color: #dc2626;
+    }
+
+    .status.success {
+      color: #16a34a;
+    }
 
     .historyTitle {
       font-size: 20px;
@@ -190,15 +201,22 @@
     }
 
     @media (max-width: 480px) {
-      body { padding: 14px; }
+      body {
+        padding: 14px;
+      }
 
       .card {
         border-radius: 24px;
         padding: 20px;
       }
 
-      .title { font-size: 30px; }
-      .questionText { font-size: 27px; }
+      .title {
+        font-size: 30px;
+      }
+
+      .questionText {
+        font-size: 27px;
+      }
 
       input,
       button {
@@ -206,7 +224,9 @@
         font-size: 25px;
       }
 
-      .meta { grid-template-columns: 1fr; }
+      .meta {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -247,6 +267,7 @@
       <section class="card">
         <label class="label" for="wordInput">輸入文字</label>
         <input id="wordInput" maxlength="200" autocomplete="off" placeholder="輸入後按送出" />
+
         <button id="sendBtn" type="button">送出</button>
         <div id="sendStatus" class="status"></div>
       </section>
@@ -286,23 +307,32 @@
       document.getElementById('joinBtn').addEventListener('click', join);
       document.getElementById('sendBtn').addEventListener('click', submitWord);
 
-      document.getElementById('nicknameInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') join();
+      document.getElementById('nicknameInput').addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          join();
+        }
       });
 
-      document.getElementById('wordInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') submitWord();
+      document.getElementById('wordInput').addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          submitWord();
+        }
       });
     });
 
     window.addEventListener('beforeunload', () => {
-      if (state.syncTimer) clearTimeout(state.syncTimer);
-      if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+      if (state.syncTimer) {
+        clearTimeout(state.syncTimer);
+      }
+
+      if (state.heartbeatTimer) {
+        clearInterval(state.heartbeatTimer);
+      }
     });
 
     async function join() {
       const nickname = document.getElementById('nicknameInput').value.trim();
-      const btn = document.getElementById('joinBtn');
+      const button = document.getElementById('joinBtn');
 
       setMsg('joinStatus', '', '');
 
@@ -311,8 +341,8 @@
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = '進入中...';
+      button.disabled = true;
+      button.textContent = '進入中...';
 
       try {
         const result = await gas('joinUser', {
@@ -331,6 +361,7 @@
         document.getElementById('mainArea').classList.remove('hidden');
 
         state.lastRenderSignature = '';
+
         renderUserState(result.state, true);
 
         startAutoSync();
@@ -340,16 +371,12 @@
         setMsg('joinStatus', messageOf(err), 'error');
 
       } finally {
-        btn.disabled = false;
-        btn.textContent = '進入';
+        button.disabled = false;
+        button.textContent = '進入';
       }
     }
 
     function startAutoSync() {
-      if (state.syncTimer) {
-        clearTimeout(state.syncTimer);
-      }
-
       scheduleUserSync(USER_SYNC_MS);
     }
 
@@ -362,7 +389,9 @@
     }
 
     async function refreshUserState() {
-      if (!state.joined) return;
+      if (!state.joined) {
+        return;
+      }
 
       if (state.syncing) {
         scheduleUserSync(800);
@@ -378,6 +407,7 @@
         });
 
         renderUserState(result, false);
+
         scheduleUserSync(USER_SYNC_MS);
 
       } catch (err) {
@@ -395,20 +425,24 @@
       }
 
       state.heartbeatTimer = setInterval(() => {
-        if (!state.joined || !state.clientId || !state.nickname) return;
+        if (!state.joined || !state.clientId || !state.nickname) {
+          return;
+        }
 
         gas('touchUserActive', {
           clientId: state.clientId,
           nickname: state.nickname
         }).catch(() => {
-          // 活躍狀態更新失敗不干擾使用者作答。
+          // 活躍狀態更新失敗不影響使用者作答。
         });
 
       }, ACTIVE_HEARTBEAT_MS);
     }
 
     async function submitWord() {
-      if (state.submitBusy) return;
+      if (state.submitBusy) {
+        return;
+      }
 
       const input = document.getElementById('wordInput');
       const text = input.value.trim();
@@ -422,6 +456,7 @@
 
       state.submitBusy = true;
       applySendAvailability();
+
       document.getElementById('sendBtn').textContent = '送出中...';
 
       try {
@@ -435,7 +470,9 @@
         input.focus();
 
         state.lastRenderSignature = '';
+
         renderUserState(result.state, true);
+
         setMsg('sendStatus', result.message || '送出成功', 'success');
 
       } catch (err) {
@@ -449,7 +486,9 @@
     }
 
     function renderUserState(data, forceRender) {
-      if (!data) return;
+      if (!data) {
+        return;
+      }
 
       state.lastUserData = data;
 
@@ -462,14 +501,14 @@
 
       state.lastRenderSignature = signature;
 
-      const q = data.question || {};
+      const question = data.question || {};
       const user = data.user || {};
 
       document.getElementById('questionNo').textContent =
-        q.questionNo ? '第 ' + q.questionNo + ' 題' : '目前題目';
+        question.questionNo ? '第 ' + question.questionNo + ' 題' : '目前題目';
 
       document.getElementById('questionText').textContent =
-        q.questionText || '尚未設定題目';
+        question.questionText || '尚未設定題目';
 
       document.getElementById('nicknameDisplay').textContent =
         state.nickname || user.nickname || '-';
@@ -478,7 +517,7 @@
         user.remaining === null ? '不限' : user.remaining;
 
       const wordInput = document.getElementById('wordInput');
-      const maxChars = Number(q.maxCharsPerWord || 0);
+      const maxChars = Number(question.maxCharsPerWord || 0);
 
       if (maxChars > 0) {
         wordInput.maxLength = String(maxChars);
@@ -493,65 +532,64 @@
     }
 
     function getUserRenderSignature(data) {
-      const q = data.question || {};
+      const question = data.question || {};
       const user = data.user || {};
-      const responses = (data.ownResponses || []).map(item => ({
-        text: item.rawText || '',
-        status: item.status || '',
-        rejectReason: item.rejectReason || ''
-      }));
 
       return JSON.stringify({
-        dataVersion: data.dataVersion || '',
         systemStatus: data.systemStatus || '',
-        questionId: q.questionId || '',
-        questionNo: q.questionNo || 0,
-        questionText: q.questionText || '',
-        questionStatus: q.status || '',
+        questionId: question.questionId || '',
+        questionText: question.questionText || '',
+        questionStatus: question.status || '',
         remaining: user.remaining,
         usedCount: user.usedCount || 0,
-        responses
+        responses: (data.ownResponses || []).map(item => ({
+          rawText: item.rawText || '',
+          status: item.status || '',
+          rejectReason: item.rejectReason || ''
+        }))
       });
     }
 
     function applySendAvailability() {
-      const sendBtn = document.getElementById('sendBtn');
+      const button = document.getElementById('sendBtn');
       const data = state.lastUserData;
-      const q = data && data.question ? data.question : {};
-      const user = data && data.user ? data.user : {};
 
-      if (state.submitBusy) {
-        sendBtn.disabled = true;
+      const question = data && data.question
+        ? data.question
+        : {};
+
+      const user = data && data.user
+        ? data.user
+        : {};
+
+      if (state.submitBusy || !data) {
+        button.disabled = true;
         return;
       }
 
-      if (!data) {
-        sendBtn.disabled = true;
-        return;
-      }
-
-      if (data.systemStatus !== 'OPEN' || q.status !== 'OPEN') {
-        sendBtn.disabled = true;
+      if (data.systemStatus !== 'OPEN' || question.status !== 'OPEN') {
+        button.disabled = true;
         setMsg('sendStatus', '目前尚未開放送出', 'error');
         return;
       }
 
       if (user.remaining !== null && Number(user.remaining) <= 0) {
-        sendBtn.disabled = true;
+        button.disabled = true;
         setMsg('sendStatus', '你已達本題送出上限', 'error');
         return;
       }
 
-      sendBtn.disabled = false;
+      button.disabled = false;
 
-      const currentStatus = document.getElementById('sendStatus');
+      const status = document.getElementById('sendStatus');
+
       if (
-        currentStatus &&
-        (
-          currentStatus.textContent === '目前尚未開放送出' ||
-          currentStatus.textContent === '你已達本題送出上限' ||
-          currentStatus.textContent === '同步失敗，系統會自動重試'
-        )
+        status &&
+        [
+          '目前尚未開放送出',
+          '你已達本題送出上限',
+          '同步失敗，系統會自動重試'
+        ].includes(status.textContent)
       ) {
         setMsg('sendStatus', '', '');
       }
@@ -565,27 +603,36 @@
         return;
       }
 
-      box.innerHTML = items.map(item => `
-        <div class="historyItem">
-          <span>${escapeHtml(item.rawText)}</span>
-          <span class="badge ${escapeAttr(item.status)}">${statusText(item.status)}</span>
-        </div>
-      `).join('');
+      box.innerHTML = items.map(item => {
+        return `
+          <div class="historyItem">
+            <span>${escapeHtml(item.rawText)}</span>
+            <span class="badge ${escapeAttr(item.status)}">${statusText(item.status)}</span>
+          </div>
+        `;
+      }).join('');
     }
 
     function statusText(status) {
       if (status === 'APPROVED') return '已顯示';
       if (status === 'PENDING') return '待審核';
       if (status === 'REJECTED') return '已拒絕';
+
       return status || '';
     }
 
     function getOrCreateClientId() {
       let id = localStorage.getItem('wc.clientId');
 
-      if (id) return id;
+      if (id) {
+        return id;
+      }
 
-      id = 'wc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+      id = 'wc_' +
+        Date.now().toString(36) +
+        '_' +
+        Math.random().toString(36).slice(2);
+
       localStorage.setItem('wc.clientId', id);
 
       return id;
@@ -597,10 +644,16 @@
 
     function jsonp(baseUrl, api, payload) {
       return new Promise((resolve, reject) => {
-        const callbackName = '__wc_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const callbackName =
+          '__wc_cb_' +
+          Date.now() +
+          '_' +
+          Math.random().toString(36).slice(2);
+
         const script = document.createElement('script');
 
         const params = new URLSearchParams();
+
         params.set('api', api);
         params.set('callback', callbackName);
         params.set('_', String(Date.now()));
@@ -640,13 +693,17 @@
         };
 
         script.src = baseUrl + '?' + params.toString();
+
         document.head.appendChild(script);
       });
     }
 
     function setMsg(id, text, type) {
       const el = document.getElementById(id);
-      if (!el) return;
+
+      if (!el) {
+        return;
+      }
 
       el.textContent = text || '';
       el.className = 'status ' + (type || '');
