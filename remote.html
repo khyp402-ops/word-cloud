@@ -17,8 +17,8 @@
       min-height: 100%;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
       background:
-        radial-gradient(circle at 20% 10%, rgba(37,99,235,.38), transparent 34%),
-        radial-gradient(circle at 80% 18%, rgba(124,58,237,.35), transparent 30%),
+        radial-gradient(circle at 20% 10%, rgba(37, 99, 235, .38), transparent 34%),
+        radial-gradient(circle at 80% 18%, rgba(124, 58, 237, .35), transparent 30%),
         #0f172a;
       color: #0f172a;
     }
@@ -47,16 +47,16 @@
 
     .subtitle {
       margin-top: 6px;
-      color: rgba(255,255,255,.72);
+      color: rgba(255, 255, 255, .72);
       font-size: 15px;
       font-weight: 800;
     }
 
     .card {
-      background: rgba(255,255,255,.96);
-      border: 1px solid rgba(255,255,255,.62);
+      background: rgba(255, 255, 255, .96);
+      border: 1px solid rgba(255, 255, 255, .62);
       border-radius: 26px;
-      box-shadow: 0 18px 42px rgba(0,0,0,.26);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, .26);
       padding: 18px;
       margin-bottom: 14px;
     }
@@ -160,7 +160,7 @@
       font-size: 22px;
       font-weight: 950;
       cursor: pointer;
-      box-shadow: 0 12px 24px rgba(15,23,42,.2);
+      box-shadow: 0 12px 24px rgba(15, 23, 42, .2);
     }
 
     button:active {
@@ -245,7 +245,7 @@
 
     .message {
       min-height: 22px;
-      color: rgba(255,255,255,.82);
+      color: rgba(255, 255, 255, .82);
       font-size: 14px;
       font-weight: 800;
       padding: 2px 4px 14px;
@@ -388,6 +388,7 @@
         const data = await gas('getRemoteState');
 
         remoteState = data;
+
         render(data);
         setMessage('已同步', false, true);
         scheduleNextSync(SYNC_INTERVAL_MS);
@@ -413,11 +414,12 @@
       lastRenderSignature = signature;
 
       const activeQuestion =
-        (data.questions || []).find(q => q.questionId === data.activeQuestionId) ||
+        (data.questions || []).find(question => question.questionId === data.activeQuestionId) ||
         data.currentQuestion ||
         {};
 
       const statusPill = document.getElementById('statusPill');
+
       statusPill.textContent = statusText(data.systemStatus);
       statusPill.className = 'statusPill ' + safeStatusClass(data.systemStatus);
 
@@ -440,27 +442,26 @@
     }
 
     function getRenderSignature(data) {
-      const questions = (data.questions || []).map(q => ({
-        id: q.questionId || '',
-        no: q.questionNo || 0,
-        text: q.questionText || '',
-        status: q.status || ''
-      }));
-
       return JSON.stringify({
-        dataVersion: data.dataVersion || '',
         activeQuestionId: data.activeQuestionId || '',
         systemStatus: data.systemStatus || '',
         participantCount: data.participantCount || 0,
         responseCount: data.responseCount || 0,
         uniqueWordCount: data.uniqueWordCount || 0,
-        questions
+        questions: (data.questions || []).map(question => ({
+          questionId: question.questionId || '',
+          questionNo: question.questionNo || 0,
+          questionText: question.questionText || '',
+          status: question.status || ''
+        }))
       });
     }
 
     function updateSyncTime() {
       document.getElementById('updatedAt').textContent =
-        new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        new Date().toLocaleTimeString('zh-TW', {
+          hour12: false
+        });
     }
 
     function renderQuestionList(questions, activeQuestionId) {
@@ -471,28 +472,30 @@
         return;
       }
 
-      box.innerHTML = questions.map(q => {
-        const isActive = q.questionId === activeQuestionId;
+      box.innerHTML = questions.map(question => {
+        const isActive = question.questionId === activeQuestionId;
 
         return `
           <button
             type="button"
             class="questionItem ${isActive ? 'active' : ''}"
-            onclick="activateQuestion('${escapeJsAttr(q.questionId)}')"
+            onclick="activateQuestion('${escapeJsAttr(question.questionId)}')"
             ${actionBusy ? 'disabled' : ''}
           >
             <div class="questionItemTop">
-              <span>第 ${escapeHtml(q.questionNo)} 題</span>
-              <span>${isActive ? '目前題目' : questionStatusText(q.status)}</span>
+              <span>第 ${escapeHtml(question.questionNo)} 題</span>
+              <span>${isActive ? '目前題目' : questionStatusText(question.status)}</span>
             </div>
-            <div class="questionItemText">${escapeHtml(q.questionText)}</div>
+            <div class="questionItemText">${escapeHtml(question.questionText)}</div>
           </button>
         `;
       }).join('');
     }
 
     async function changeStatus(status) {
-      if (actionBusy) return;
+      if (actionBusy) {
+        return;
+      }
 
       setBusy(true);
       setMessage('狀態更新中...', false, false);
@@ -503,6 +506,7 @@
 
         remoteState = nextState;
         lastRenderSignature = '';
+
         render(nextState);
         setMessage(result.message || '系統狀態已更新', false, true);
 
@@ -516,7 +520,9 @@
     }
 
     async function switchDirection(direction) {
-      if (actionBusy) return;
+      if (actionBusy) {
+        return;
+      }
 
       setBusy(true);
       setMessage('題目切換中...', false, false);
@@ -527,6 +533,7 @@
 
         remoteState = nextState;
         lastRenderSignature = '';
+
         render(nextState);
         setMessage(result.message || '題目已切換', false, true);
 
@@ -540,17 +547,20 @@
     }
 
     async function activateQuestion(questionId) {
-      if (actionBusy) return;
+      if (actionBusy) {
+        return;
+      }
 
       setBusy(true);
       setMessage('題目切換中...', false, false);
 
       try {
         const result = await gas('setActiveQuestion', questionId);
-        const nextState = result.remoteState || await gas('getRemoteState';
+        const nextState = result.remoteState || await gas('getRemoteState');
 
         remoteState = nextState;
         lastRenderSignature = '';
+
         render(nextState);
         setMessage(result.message || '目前題目已切換', false, true);
 
@@ -566,18 +576,28 @@
     function setBusy(value) {
       actionBusy = !!value;
 
-      ['openBtn', 'pauseBtn', 'closeBtn', 'prevBtn', 'nextBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.disabled = actionBusy;
+      [
+        'openBtn',
+        'pauseBtn',
+        'closeBtn',
+        'prevBtn',
+        'nextBtn'
+      ].forEach(id => {
+        const button = document.getElementById(id);
+
+        if (button) {
+          button.disabled = actionBusy;
+        }
       });
 
-      document.querySelectorAll('.questionItem').forEach(btn => {
-        btn.disabled = actionBusy;
+      document.querySelectorAll('.questionItem').forEach(button => {
+        button.disabled = actionBusy;
       });
     }
 
     function setMessage(text, isError, isSuccess) {
       const el = document.getElementById('message');
+
       el.textContent = text || '';
 
       if (isError) {
@@ -593,6 +613,7 @@
       if (status === 'OPEN') return '開放作答中';
       if (status === 'PAUSED') return '暫停作答';
       if (status === 'CLOSED') return '已截止';
+
       return status || '';
     }
 
@@ -600,6 +621,7 @@
       if (status === 'OPEN') return 'OPEN';
       if (status === 'PAUSED') return 'PAUSED';
       if (status === 'CLOSED') return 'CLOSED';
+
       return '';
     }
 
@@ -607,6 +629,7 @@
       if (status === 'OPEN') return '開放';
       if (status === 'CLOSED') return '關閉';
       if (status === 'DRAFT') return '草稿';
+
       return status || '';
     }
 
@@ -616,10 +639,16 @@
 
     function jsonp(baseUrl, api, payload) {
       return new Promise((resolve, reject) => {
-        const callbackName = '__wc_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const callbackName =
+          '__wc_cb_' +
+          Date.now() +
+          '_' +
+          Math.random().toString(36).slice(2);
+
         const script = document.createElement('script');
 
         const params = new URLSearchParams();
+
         params.set('api', api);
         params.set('callback', callbackName);
         params.set('_', String(Date.now()));
@@ -659,6 +688,7 @@
         };
 
         script.src = baseUrl + '?' + params.toString();
+
         document.head.appendChild(script);
       });
     }
@@ -670,8 +700,11 @@
     }
 
     function toSafeNumber(value) {
-      const n = Number(value);
-      return Number.isFinite(n) ? n : 0;
+      const number = Number(value);
+
+      return Number.isFinite(number)
+        ? number
+        : 0;
     }
 
     function escapeHtml(value) {
