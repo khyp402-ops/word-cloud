@@ -40,6 +40,58 @@
       color: white;
     }
 
+    .brandMark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 7px 12px 7px 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .12);
+      border: 1px solid rgba(255, 255, 255, .18);
+      color: rgba(255, 255, 255, .9);
+      font-size: 17px;
+      font-weight: 950;
+      letter-spacing: .02em;
+      width: fit-content;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .16);
+    }
+
+    .brandIcon {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      display: inline-block;
+    }
+
+    .brandIcon::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 5px;
+      background: linear-gradient(135deg, #60a5fa, #2563eb);
+      transform: rotate(45deg);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, .35);
+    }
+
+    .brandIcon::after {
+      content: "";
+      position: absolute;
+      right: 1px;
+      bottom: 1px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #c084fc, #7c3aed);
+      box-shadow:
+        -12px 8px 0 -3px #22c55e,
+        0 0 0 1px rgba(255, 255, 255, .35);
+    }
+
     .sessionName {
       font-size: 22px;
       font-weight: 900;
@@ -219,6 +271,10 @@
         flex-direction: column;
       }
 
+      .brandMark {
+        font-size: 15px;
+      }
+
       .question {
         font-size: 32px;
       }
@@ -242,6 +298,11 @@
   <main class="layout">
     <header class="top">
       <div>
+        <div class="brandMark">
+          <span class="brandIcon" aria-hidden="true"></span>
+          <span>KHYP文字雲</span>
+        </div>
+
         <div id="sessionName" class="sessionName">即時文字雲</div>
         <div id="questionText" class="question">載入中...</div>
       </div>
@@ -420,7 +481,7 @@
         return;
       }
 
-      const counts = words.map(w => Number(w.count || 0));
+      const counts = words.map(word => Number(word.count || 0));
 
       const max = Math.max.apply(null, counts);
       const min = Math.min.apply(null, counts);
