@@ -91,8 +91,8 @@
     }
 
     .CLOSED {
-      background: #fee2e2;
-      color: #991b1b;
+      background: #fef3c7;
+      color: #92400e;
     }
 
     .smallText {
@@ -185,16 +185,8 @@
       background: linear-gradient(135deg, #d97706, #b45309);
     }
 
-    .btnDanger {
-      background: linear-gradient(135deg, #dc2626, #b91c1c);
-    }
-
     .btnSecondary {
       background: linear-gradient(135deg, #475569, #334155);
-    }
-
-    .wide {
-      grid-column: 1 / -1;
     }
 
     .sectionTitle {
@@ -289,7 +281,7 @@
   <main class="wrap">
     <header class="header">
       <h1 class="title">主持者遙控器</h1>
-      <div class="subtitle">快速切換題目、開放與暫停作答</div>
+      <div class="subtitle"></div>
     </header>
 
     <div id="message" class="message">載入中...</div>
@@ -327,7 +319,6 @@
       <div class="buttonGrid">
         <button id="openBtn" class="btnSuccess" type="button" onclick="changeStatus('OPEN')">開放作答</button>
         <button id="pauseBtn" class="btnWarning" type="button" onclick="changeStatus('PAUSED')">暫停作答</button>
-        <button id="closeBtn" class="btnDanger wide" type="button" onclick="changeStatus('CLOSED')">截止作答</button>
       </div>
     </section>
 
@@ -579,7 +570,6 @@
       [
         'openBtn',
         'pauseBtn',
-        'closeBtn',
         'prevBtn',
         'nextBtn'
       ].forEach(id => {
@@ -612,7 +602,7 @@
     function statusText(status) {
       if (status === 'OPEN') return '開放作答中';
       if (status === 'PAUSED') return '暫停作答';
-      if (status === 'CLOSED') return '已截止';
+      if (status === 'CLOSED') return '暫停作答';
 
       return status || '';
     }
@@ -620,7 +610,7 @@
     function safeStatusClass(status) {
       if (status === 'OPEN') return 'OPEN';
       if (status === 'PAUSED') return 'PAUSED';
-      if (status === 'CLOSED') return 'CLOSED';
+      if (status === 'CLOSED') return 'PAUSED';
 
       return '';
     }
