@@ -187,7 +187,7 @@
       border-bottom: 1px solid #e2e8f0;
       padding: 10px 8px;
       text-align: left;
-      vertical-align: top;
+      vertical-align: middle;
     }
 
     th {
@@ -858,7 +858,6 @@
     function normalizeAnswerCharLimit(value) {
       const number = Number(value);
 
-      // 相容舊版題目：0／空白／超過 10 的設定，在後台以 10 字顯示。
       if (!Number.isInteger(number) || number < 1) {
         return 10;
       }
