@@ -26,7 +26,8 @@
 
     .layout {
       width: 100vw;
-      height: 100vh;
+      height: 100dvh;
+      min-height: 100vh;
       padding: 22px;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
@@ -37,6 +38,7 @@
       display: flex;
       justify-content: space-between;
       gap: 18px;
+      min-height: 0;
       color: white;
     }
 
@@ -144,38 +146,70 @@
     }
 
     .cloud {
-      padding: 28px;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .cloudViewport {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      align-content: center;
+      padding: clamp(18px, 2.2vw, 34px);
+      overflow: hidden;
+    }
+
+    .cloudStage {
+      width: 100%;
+      display: flex;
       flex-wrap: wrap;
-      gap: 18px 24px;
-      overflow: auto;
+      justify-content: center;
+      align-items: center;
+      align-content: center;
+      transform-origin: center center;
+      will-change: transform;
     }
 
     .word {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      min-width: 0;
+      max-width: 100%;
       gap: .18em;
+      flex: 0 1 auto;
       font-weight: 950;
-      line-height: 1;
+      line-height: 1.06;
       letter-spacing: -.06em;
-      text-shadow: 0 10px 26px rgba(15, 23, 42, .16);
-      padding: 4px 8px;
+      text-align: center;
+      text-shadow: 0 8px 20px rgba(15, 23, 42, .14);
       border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .wordText {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .count {
       display: inline-flex;
       justify-content: center;
       align-items: center;
-      min-width: 1.5em;
-      height: 1.5em;
+      flex: 0 0 auto;
+      min-width: 1.45em;
+      height: 1.45em;
+      padding: 0 .18em;
       border-radius: 999px;
       background: rgba(37, 99, 235, .12);
       color: #1d4ed8;
       font-size: .32em;
+      line-height: 1;
       letter-spacing: 0;
     }
 
@@ -284,11 +318,11 @@
       }
 
       .side {
-        display: none;
+        display: none !important;
       }
 
-      .word {
-        letter-spacing: -.04em;
+      .footer {
+        font-size: 13px;
       }
     }
   </style>
@@ -315,9 +349,11 @@
 
     <section id="main" class="main">
       <section id="cloud" class="panel cloud">
-        <div class="empty">
-          尚未有文字
-          <div class="emptySmall">等待使用者送出</div>
+        <div id="cloudViewport" class="cloudViewport">
+          <div class="empty">
+            尚未有文字
+            <div class="emptySmall">等待使用者送出</div>
+          </div>
         </div>
       </section>
 
@@ -360,16 +396,44 @@
     let lastFrameSignature = '';
     let lastCloudSignature = '';
     let lastParticipantsSignature = '';
+    let cloudFitFrame = null;
+    let cloudResizeObserver = null;
 
     document.addEventListener('DOMContentLoaded', () => {
+      observeCloudResize();
       refresh();
     });
+
+    window.addEventListener('resize', scheduleCloudFit);
+    window.addEventListener('orientationchange', scheduleCloudFit);
 
     window.addEventListener('beforeunload', () => {
       if (timer) {
         clearTimeout(timer);
       }
+
+      if (cloudFitFrame) {
+        cancelAnimationFrame(cloudFitFrame);
+      }
+
+      if (cloudResizeObserver) {
+        cloudResizeObserver.disconnect();
+      }
     });
+
+    function observeCloudResize() {
+      const cloud = document.getElementById('cloud');
+
+      if (!cloud || !window.ResizeObserver) {
+        return;
+      }
+
+      cloudResizeObserver = new ResizeObserver(() => {
+        scheduleCloudFit();
+      });
+
+      cloudResizeObserver.observe(cloud);
+    }
 
     function scheduleNextRefresh(delay) {
       if (timer) {
@@ -469,10 +533,18 @@
     }
 
     function renderCloud(words) {
-      const cloud = document.getElementById('cloud');
+      const viewport = document.getElementById('cloudViewport');
+      const safeWords = Array.isArray(words)
+        ? words
+          .map(word => ({
+            text: String(word && word.text != null ? word.text : '').trim(),
+            count: toSafeNumber(word && word.count)
+          }))
+          .filter(word => word.text)
+        : [];
 
-      if (!words.length) {
-        cloud.innerHTML = `
+      if (!safeWords.length) {
+        viewport.innerHTML = `
           <div class="empty">
             尚未有文字
             <div class="emptySmall">等待使用者送出</div>
@@ -481,39 +553,123 @@
         return;
       }
 
-      const counts = words.map(word => Number(word.count || 0));
+      const counts = safeWords.map(word => word.count);
+      const maxCount = Math.max.apply(null, counts);
+      const minCount = Math.min.apply(null, counts);
 
-      const max = Math.max.apply(null, counts);
-      const min = Math.min.apply(null, counts);
+      viewport.innerHTML = `
+        <div id="cloudStage" class="cloudStage">
+          ${safeWords.map((word, index) => {
+            const ratio = maxCount === minCount
+              ? 0.58
+              : (word.count - minCount) / (maxCount - minCount);
 
-      const minSize = 34;
-      const maxSize = 108;
-      const rotateList = [-6, 3, 0, 5, -3, 7, -5, 2];
+            const sizeWeight = 0.62 + Math.pow(Math.max(0, ratio), 0.58) * 0.88;
+            const color = colors[index % colors.length];
 
-      cloud.innerHTML = words.map((word, index) => {
-        const count = Number(word.count || 0);
+            return `
+              <div
+                class="word"
+                data-size-weight="${sizeWeight.toFixed(4)}"
+                style="color:${color};"
+              >
+                <span class="wordText">${escapeHtml(word.text)}</span>
+                <span class="count">${word.count}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
 
-        const ratio = max === min
-          ? .55
-          : (count - min) / (max - min);
+      scheduleCloudFit();
+    }
 
-        const size = Math.round(
-          minSize + Math.sqrt(ratio) * (maxSize - minSize)
-        );
+    function scheduleCloudFit() {
+      if (cloudFitFrame) {
+        cancelAnimationFrame(cloudFitFrame);
+      }
 
-        const rotate = rotateList[index % rotateList.length];
-        const color = colors[index % colors.length];
+      cloudFitFrame = requestAnimationFrame(() => {
+        cloudFitFrame = null;
+        fitCloudToCanvas();
+      });
+    }
 
-        return `
-          <div
-            class="word"
-            style="font-size:${size}px;color:${color};transform:rotate(${rotate}deg);"
-          >
-            ${escapeHtml(word.text)}
-            <span class="count">${count}</span>
-          </div>
-        `;
-      }).join('');
+    function fitCloudToCanvas() {
+      const viewport = document.getElementById('cloudViewport');
+      const stage = document.getElementById('cloudStage');
+
+      if (!viewport || !stage) {
+        return;
+      }
+
+      const availableWidth = viewport.clientWidth;
+      const availableHeight = viewport.clientHeight;
+
+      if (availableWidth < 40 || availableHeight < 40) {
+        return;
+      }
+
+      stage.style.width = availableWidth + 'px';
+      stage.style.transform = 'scale(1)';
+
+      const maxBaseSize = Math.max(
+        30,
+        Math.min(
+          300,
+          Math.min(availableWidth * 0.43, availableHeight * 0.9)
+        )
+      );
+
+      let low = 7;
+      let high = maxBaseSize;
+      let best = low;
+
+      for (let i = 0; i < 15; i += 1) {
+        const middle = (low + high) / 2;
+
+        applyCloudTypography(stage, middle);
+
+        const stageHeight = stage.getBoundingClientRect().height;
+
+        if (stageHeight <= availableHeight) {
+          best = middle;
+          low = middle;
+        } else {
+          high = middle;
+        }
+      }
+
+      applyCloudTypography(stage, best);
+
+      const finalRect = stage.getBoundingClientRect();
+      const fitScale = Math.min(
+        1,
+        availableWidth / Math.max(1, finalRect.width),
+        availableHeight / Math.max(1, finalRect.height)
+      );
+
+      stage.style.transform =
+        'scale(' + Math.max(0.03, fitScale).toFixed(4) + ')';
+    }
+
+    function applyCloudTypography(stage, baseSize) {
+      const words = Array.from(stage.querySelectorAll('.word'));
+      const columnGap = Math.max(4, Math.round(baseSize * 0.17));
+      const rowGap = Math.max(4, Math.round(baseSize * 0.13));
+
+      stage.style.columnGap = columnGap + 'px';
+      stage.style.rowGap = rowGap + 'px';
+
+      words.forEach(word => {
+        const sizeWeight = Number(word.dataset.sizeWeight || 1);
+        const fontSize = Math.max(7, baseSize * sizeWeight);
+        const paddingY = Math.max(1, Math.round(fontSize * 0.025));
+        const paddingX = Math.max(2, Math.round(fontSize * 0.05));
+
+        word.style.fontSize = fontSize.toFixed(2) + 'px';
+        word.style.padding = paddingY + 'px ' + paddingX + 'px';
+      });
     }
 
     function renderParticipants(items, showParticipants) {
@@ -528,11 +684,13 @@
 
       if (!shouldShow) {
         box.innerHTML = '';
+        scheduleCloudFit();
         return;
       }
 
       if (!items.length) {
         box.innerHTML = '<div class="emptySmall">尚未有人加入</div>';
+        scheduleCloudFit();
         return;
       }
 
@@ -544,6 +702,8 @@
           </div>
         `;
       }).join('');
+
+      scheduleCloudFit();
     }
 
     function getFrameSignature(data) {
@@ -615,7 +775,6 @@
           Math.random().toString(36).slice(2);
 
         const script = document.createElement('script');
-
         const params = new URLSearchParams();
 
         params.set('api', api);
@@ -626,13 +785,13 @@
           params.set('payload', JSON.stringify(payload));
         }
 
-        const timer = setTimeout(() => {
+        const requestTimer = setTimeout(() => {
           cleanup();
           reject(new Error('連線逾時，請稍後再試'));
         }, 15000);
 
         function cleanup() {
-          clearTimeout(timer);
+          clearTimeout(requestTimer);
           delete window[callbackName];
 
           if (script.parentNode) {
@@ -657,7 +816,6 @@
         };
 
         script.src = baseUrl + '?' + params.toString();
-
         document.head.appendChild(script);
       });
     }
