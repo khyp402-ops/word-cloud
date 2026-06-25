@@ -26,8 +26,9 @@
 
     .layout {
       width: 100vw;
+      width: 100dvw;
+      height: 100vh;
       height: 100dvh;
-      min-height: 100vh;
       padding: 22px;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
@@ -138,6 +139,7 @@
     }
 
     .panel {
+      min-width: 0;
       min-height: 0;
       border-radius: 32px;
       background: rgba(255, 255, 255, .94);
@@ -155,22 +157,21 @@
     .cloudViewport {
       position: absolute;
       inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: clamp(18px, 2.2vw, 34px);
+      padding: clamp(18px, 2vw, 34px);
       overflow: hidden;
     }
 
     .cloudStage {
-      width: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       align-items: center;
       align-content: center;
-      transform-origin: center center;
-      will-change: transform;
+      transform-origin: 0 0;
+      will-change: transform, left, top;
     }
 
     .word {
@@ -179,15 +180,16 @@
       justify-content: center;
       min-width: 0;
       max-width: 100%;
-      gap: .18em;
       flex: 0 1 auto;
+      gap: .18em;
       font-weight: 950;
       line-height: 1.06;
       letter-spacing: -.06em;
       text-align: center;
-      text-shadow: 0 8px 20px rgba(15, 23, 42, .14);
+      text-shadow: 0 10px 26px rgba(15, 23, 42, .16);
       border-radius: 18px;
-      overflow: hidden;
+      transform-origin: center center;
+      overflow: visible;
     }
 
     .wordText {
@@ -269,7 +271,11 @@
     }
 
     .empty {
-      width: 100%;
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      padding: 24px;
       text-align: center;
       color: #64748b;
       font-size: 34px;
@@ -391,6 +397,8 @@
       '#c2410c'
     ];
 
+    const rotateList = [-8, 5, -4, 7, -6, 3, -2, 6, -7, 4, -5, 2];
+
     let timer = null;
     let refreshing = false;
     let lastFrameSignature = '';
@@ -422,9 +430,9 @@
     });
 
     function observeCloudResize() {
-      const cloud = document.getElementById('cloud');
+      const cloudViewport = document.getElementById('cloudViewport');
 
-      if (!cloud || !window.ResizeObserver) {
+      if (!cloudViewport || !window.ResizeObserver) {
         return;
       }
 
@@ -432,7 +440,7 @@
         scheduleCloudFit();
       });
 
-      cloudResizeObserver.observe(cloud);
+      cloudResizeObserver.observe(cloudViewport);
     }
 
     function scheduleNextRefresh(delay) {
@@ -534,6 +542,7 @@
 
     function renderCloud(words) {
       const viewport = document.getElementById('cloudViewport');
+
       const safeWords = Array.isArray(words)
         ? words
           .map(word => ({
@@ -564,14 +573,17 @@
               ? 0.58
               : (word.count - minCount) / (maxCount - minCount);
 
-            const sizeWeight = 0.62 + Math.pow(Math.max(0, ratio), 0.58) * 0.88;
+            const sizeWeight =
+              0.62 + Math.pow(Math.max(0, ratio), 0.58) * 0.88;
+
             const color = colors[index % colors.length];
+            const rotate = rotateList[index % rotateList.length];
 
             return `
               <div
                 class="word"
                 data-size-weight="${sizeWeight.toFixed(4)}"
-                style="color:${color};"
+                style="color:${color};transform:rotate(${rotate}deg);"
               >
                 <span class="wordText">${escapeHtml(word.text)}</span>
                 <span class="count">${word.count}</span>
@@ -610,29 +622,46 @@
         return;
       }
 
+      const wordElements = Array.from(stage.querySelectorAll('.word'));
+
+      if (!wordElements.length) {
+        return;
+      }
+
+      stage.style.left = '0px';
+      stage.style.top = '0px';
       stage.style.width = availableWidth + 'px';
-      stage.style.transform = 'scale(1)';
+      stage.style.transform = 'none';
 
       const maxBaseSize = Math.max(
         30,
         Math.min(
-          300,
-          Math.min(availableWidth * 0.43, availableHeight * 0.9)
+          320,
+          Math.max(availableWidth, availableHeight) * 0.42
         )
       );
 
-      let low = 7;
+      const minBaseSize = 6;
+      let low = minBaseSize;
       let high = maxBaseSize;
-      let best = low;
+      let best = minBaseSize;
 
-      for (let i = 0; i < 15; i += 1) {
+      for (let index = 0; index < 15; index += 1) {
         const middle = (low + high) / 2;
 
         applyCloudTypography(stage, middle);
 
-        const stageHeight = stage.getBoundingClientRect().height;
+        const contentBounds = getCloudContentBounds(
+          stage,
+          wordElements,
+          Math.max(4, middle * 0.08)
+        );
 
-        if (stageHeight <= availableHeight) {
+        const isFit =
+          contentBounds.width <= availableWidth &&
+          contentBounds.height <= availableHeight;
+
+        if (isFit) {
           best = middle;
           low = middle;
         } else {
@@ -642,34 +671,92 @@
 
       applyCloudTypography(stage, best);
 
-      const finalRect = stage.getBoundingClientRect();
-      const fitScale = Math.min(
-        1,
-        availableWidth / Math.max(1, finalRect.width),
-        availableHeight / Math.max(1, finalRect.height)
+      const finalBounds = getCloudContentBounds(
+        stage,
+        wordElements,
+        Math.max(4, best * 0.08)
       );
 
-      stage.style.transform =
-        'scale(' + Math.max(0.03, fitScale).toFixed(4) + ')';
+      const scale = Math.min(
+        1,
+        availableWidth / Math.max(1, finalBounds.width),
+        availableHeight / Math.max(1, finalBounds.height)
+      );
+
+      const safeScale = Math.max(0.03, scale);
+
+      const left =
+        (availableWidth - finalBounds.width * safeScale) / 2 -
+        finalBounds.left * safeScale;
+
+      const top =
+        (availableHeight - finalBounds.height * safeScale) / 2 -
+        finalBounds.top * safeScale;
+
+      stage.style.left = left.toFixed(2) + 'px';
+      stage.style.top = top.toFixed(2) + 'px';
+      stage.style.transform = 'scale(' + safeScale.toFixed(4) + ')';
     }
 
     function applyCloudTypography(stage, baseSize) {
       const words = Array.from(stage.querySelectorAll('.word'));
-      const columnGap = Math.max(4, Math.round(baseSize * 0.17));
-      const rowGap = Math.max(4, Math.round(baseSize * 0.13));
+
+      const columnGap = Math.max(5, Math.round(baseSize * 0.19));
+      const rowGap = Math.max(5, Math.round(baseSize * 0.15));
 
       stage.style.columnGap = columnGap + 'px';
       stage.style.rowGap = rowGap + 'px';
 
       words.forEach(word => {
         const sizeWeight = Number(word.dataset.sizeWeight || 1);
-        const fontSize = Math.max(7, baseSize * sizeWeight);
-        const paddingY = Math.max(1, Math.round(fontSize * 0.025));
-        const paddingX = Math.max(2, Math.round(fontSize * 0.05));
+        const fontSize = Math.max(6, baseSize * sizeWeight);
+        const paddingY = Math.max(1, Math.round(fontSize * 0.03));
+        const paddingX = Math.max(2, Math.round(fontSize * 0.06));
 
         word.style.fontSize = fontSize.toFixed(2) + 'px';
         word.style.padding = paddingY + 'px ' + paddingX + 'px';
       });
+    }
+
+    function getCloudContentBounds(stage, wordElements, safetyPadding) {
+      const stageRect = stage.getBoundingClientRect();
+
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+
+      wordElements.forEach(word => {
+        const rect = word.getBoundingClientRect();
+
+        left = Math.min(left, rect.left - stageRect.left);
+        top = Math.min(top, rect.top - stageRect.top);
+        right = Math.max(right, rect.right - stageRect.left);
+        bottom = Math.max(bottom, rect.bottom - stageRect.top);
+      });
+
+      if (
+        !Number.isFinite(left) ||
+        !Number.isFinite(top) ||
+        !Number.isFinite(right) ||
+        !Number.isFinite(bottom)
+      ) {
+        return {
+          left: 0,
+          top: 0,
+          width: 1,
+          height: 1
+        };
+      }
+
+      const padding = Number(safetyPadding) || 0;
+
+      return {
+        left: left - padding,
+        top: top - padding,
+        width: Math.max(1, right - left + padding * 2),
+        height: Math.max(1, bottom - top + padding * 2)
+      };
     }
 
     function renderParticipants(items, showParticipants) {
