@@ -567,16 +567,19 @@
       </select>
 
       <label for="editMaxCharsPerWord">使用者作答字數限制</label>
-      <input
-        id="editMaxCharsPerWord"
-        type="number"
-        min="0"
-        max="1000"
-        step="1"
-        inputmode="numeric"
-        placeholder="0 表示無限制"
-      />
-      <div class="note">設定每次送出的字數上限；填入 0 表示無限制。上限為 1000 字。</div>
+      <select id="editMaxCharsPerWord">
+        <option value="1">1 字</option>
+        <option value="2">2 字</option>
+        <option value="3">3 字</option>
+        <option value="4">4 字</option>
+        <option value="5">5 字</option>
+        <option value="6">6 字</option>
+        <option value="7">7 字</option>
+        <option value="8">8 字</option>
+        <option value="9">9 字</option>
+        <option value="10" selected>10 字</option>
+      </select>
+      <div class="note">每次送出的作答字數限制可設定為 1～10 字。</div>
 
       <label for="editShowInCloud">是否顯示文字雲</label>
       <select id="editShowInCloud">
@@ -853,6 +856,17 @@
       });
     }
 
+    function normalizeAnswerCharLimit(value) {
+      const number = Number(value);
+
+      // 相容舊版題目：0／空白／超過 10 的設定，在後台以 10 字顯示。
+      if (!Number.isInteger(number) || number < 1) {
+        return 10;
+      }
+
+      return Math.min(number, 10);
+    }
+
     function renderQuestions(items, activeQuestionId) {
       const tbody = document.getElementById('questionTable');
 
@@ -864,7 +878,7 @@
       tbody.innerHTML = items.map(q => {
         const questionId = q.questionId || '';
         const status = q.status || '';
-        const maxChars = toNumber(q.maxCharsPerWord, 0);
+        const maxChars = normalizeAnswerCharLimit(q.maxCharsPerWord);
         const maxResponses = toNumber(q.maxResponsesPerUser, 3);
         const isActive = questionId === activeQuestionId;
 
@@ -890,7 +904,7 @@
             </td>
             <td>
               每人 ${maxResponses} 次<br>
-              作答字數：${maxChars === 0 ? '無限制' : maxChars + ' 字'}
+              作答字數：${maxChars} 字
             </td>
             <td>
               <button class="miniBtn" onclick="openEditModal('${escapeJsAttr(questionId)}')">編輯</button>
@@ -1057,7 +1071,7 @@
       document.getElementById('editQuestionText').value = q.questionText || '';
       document.getElementById('editQuestionStatus').value = q.status || 'OPEN';
       document.getElementById('editMaxResponsesPerUser').value = String(toNumber(q.maxResponsesPerUser, 3));
-      document.getElementById('editMaxCharsPerWord').value = String(toNumber(q.maxCharsPerWord, 0));
+      document.getElementById('editMaxCharsPerWord').value = String(normalizeAnswerCharLimit(q.maxCharsPerWord));
       document.getElementById('editAllowDuplicateWord').value = normalizeBoolean(q.allowDuplicateWord, false) ? 'TRUE' : 'FALSE';
       document.getElementById('editNeedApproval').value = normalizeBoolean(q.needApproval, false) ? 'TRUE' : 'FALSE';
       document.getElementById('editShowInCloud').value = normalizeBoolean(q.showInCloud, true) ? 'TRUE' : 'FALSE';
@@ -1105,8 +1119,8 @@
         return;
       }
 
-      if (!/^\d+$/.test(maxCharsInput) || !Number.isInteger(maxChars) || maxChars < 0 || maxChars > 1000) {
-        setMsg('editStatusMsg', '作答字數限制請輸入 0 至 1000 的整數', 'error');
+      if (!/^\d+$/.test(maxCharsInput) || !Number.isInteger(maxChars) || maxChars < 1 || maxChars > 10) {
+        setMsg('editStatusMsg', '作答字數限制請選擇 1 至 10 字', 'error');
         return;
       }
 
