@@ -622,7 +622,7 @@
         user.remaining === null ? '不限' : user.remaining;
 
       const wordInput = document.getElementById('wordInput');
-      const maxChars = getAnswerCharLimit(question);
+      const maxChars = getAnswerCharLimit(data);
 
       // 使用自訂字數計算，避免 HTML maxlength 對 emoji 採 UTF-16 計數而與後端不一致。
       wordInput.removeAttribute('maxlength');
@@ -642,7 +642,7 @@
         questionId: question.questionId || '',
         questionText: question.questionText || '',
         questionStatus: question.status || '',
-        maxCharsPerWord: question.maxCharsPerWord || 0,
+        answerMaxChars: data.answerMaxChars || question.maxCharsPerWord || 0,
         remaining: user.remaining,
         usedCount: user.usedCount || 0,
         responses: (data.ownResponses || []).map(item => ({
@@ -653,10 +653,15 @@
       });
     }
 
-    function getAnswerCharLimit(question) {
-      const value = Number(question && question.maxCharsPerWord);
+    function getAnswerCharLimit(userState) {
+      const data = userState || {};
+      const question = data.question || {};
+      const rawValue = data.answerMaxChars !== undefined && data.answerMaxChars !== ''
+        ? data.answerMaxChars
+        : question.maxCharsPerWord;
+      const value = Number(rawValue);
 
-      // 相容舊版題目：0／空白／超過 10 的設定，一律以 10 字處理。
+      // 相容舊版 API：若後端尚未回傳活動共用設定，才退回題目欄位。
       if (!Number.isInteger(value) || value < 1) {
         return 10;
       }
@@ -678,10 +683,7 @@
     function updateWordCountHint() {
       const input = document.getElementById('wordInput');
       const hint = document.getElementById('wordCountHint');
-      const question = state.lastUserData && state.lastUserData.question
-        ? state.lastUserData.question
-        : {};
-      const maxChars = getAnswerCharLimit(question);
+      const maxChars = getAnswerCharLimit(state.lastUserData);
       const count = countAnswerChars(input ? input.value : '');
 
       hint.textContent = count + ' / ' + maxChars;
@@ -694,10 +696,7 @@
     }
 
     function isAnswerWithinLimit(text, showMessage) {
-      const question = state.lastUserData && state.lastUserData.question
-        ? state.lastUserData.question
-        : {};
-      const maxChars = getAnswerCharLimit(question);
+      const maxChars = getAnswerCharLimit(state.lastUserData);
       const count = countAnswerChars(text);
 
       if (count > maxChars) {
