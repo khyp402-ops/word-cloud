@@ -566,15 +566,17 @@
         <option value="5">5 次</option>
       </select>
 
-      <label for="editMaxCharsPerWord">回答字數限制</label>
-      <select id="editMaxCharsPerWord">
-        <option value="0">無限制</option>
-        <option value="10">10 字</option>
-        <option value="20">20 字</option>
-        <option value="30">30 字</option>
-        <option value="50">50 字</option>
-        <option value="100">100 字</option>
-      </select>
+      <label for="editMaxCharsPerWord">使用者作答字數限制</label>
+      <input
+        id="editMaxCharsPerWord"
+        type="number"
+        min="0"
+        max="1000"
+        step="1"
+        inputmode="numeric"
+        placeholder="0 表示無限制"
+      />
+      <div class="note">設定每次送出的字數上限；填入 0 表示無限制。上限為 1000 字。</div>
 
       <label for="editShowInCloud">是否顯示文字雲</label>
       <select id="editShowInCloud">
@@ -888,7 +890,7 @@
             </td>
             <td>
               每人 ${maxResponses} 次<br>
-              字數：${maxChars === 0 ? '無限制' : maxChars + ' 字'}
+              作答字數：${maxChars === 0 ? '無限制' : maxChars + ' 字'}
             </td>
             <td>
               <button class="miniBtn" onclick="openEditModal('${escapeJsAttr(questionId)}')">編輯</button>
@@ -1087,6 +1089,8 @@
     async function saveQuestionFromModal() {
       const questionId = document.getElementById('editQuestionId').value;
       const text = document.getElementById('editQuestionText').value.trim();
+      const maxCharsInput = document.getElementById('editMaxCharsPerWord').value.trim();
+      const maxChars = Number(maxCharsInput);
 
       setMsg('editStatusMsg', '儲存中...', '');
       setMsg('questionStatusMsg', '', '');
@@ -1101,6 +1105,11 @@
         return;
       }
 
+      if (!/^\d+$/.test(maxCharsInput) || !Number.isInteger(maxChars) || maxChars < 0 || maxChars > 1000) {
+        setMsg('editStatusMsg', '作答字數限制請輸入 0 至 1000 的整數', 'error');
+        return;
+      }
+
       adminBusy = true;
       setQuestionModalSaving(true);
 
@@ -1110,7 +1119,7 @@
           questionText: text,
           status: document.getElementById('editQuestionStatus').value,
           maxResponsesPerUser: document.getElementById('editMaxResponsesPerUser').value,
-          maxCharsPerWord: document.getElementById('editMaxCharsPerWord').value,
+          maxCharsPerWord: maxChars,
           allowDuplicateWord: document.getElementById('editAllowDuplicateWord').value,
           needApproval: document.getElementById('editNeedApproval').value,
           showInCloud: document.getElementById('editShowInCloud').value
