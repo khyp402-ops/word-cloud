@@ -280,7 +280,7 @@
       <section class="card">
         <label class="label" for="wordInput">輸入文字</label>
         <input id="wordInput" autocomplete="off" placeholder="輸入後按送出" />
-        <div id="wordCountHint" class="inputHint" aria-live="polite">0 / 無限制</div>
+        <div id="wordCountHint" class="inputHint" aria-live="polite">0 / 10</div>
 
         <button id="sendBtn" type="button">送出</button>
         <div id="sendStatus" class="status"></div>
@@ -626,9 +626,7 @@
 
       // 使用自訂字數計算，避免 HTML maxlength 對 emoji 採 UTF-16 計數而與後端不一致。
       wordInput.removeAttribute('maxlength');
-      wordInput.placeholder = maxChars > 0
-        ? '請輸入文字（最多 ' + maxChars + ' 字）'
-        : '輸入後按送出';
+      wordInput.placeholder = '請輸入文字（最多 ' + maxChars + ' 字）';
 
       updateWordCountHint();
       renderHistory(data.ownResponses || []);
@@ -656,8 +654,14 @@
     }
 
     function getAnswerCharLimit(question) {
-      const value = Number(question && question.maxCharsPerWord || 0);
-      return Number.isInteger(value) && value > 0 ? value : 0;
+      const value = Number(question && question.maxCharsPerWord);
+
+      // 相容舊版題目：0／空白／超過 10 的設定，一律以 10 字處理。
+      if (!Number.isInteger(value) || value < 1) {
+        return 10;
+      }
+
+      return Math.min(value, 10);
     }
 
     function normalizeAnswerTextForCount(value) {
@@ -680,8 +684,8 @@
       const maxChars = getAnswerCharLimit(question);
       const count = countAnswerChars(input ? input.value : '');
 
-      hint.textContent = count + ' / ' + (maxChars > 0 ? maxChars : '無限制');
-      hint.classList.toggle('overLimit', maxChars > 0 && count > maxChars);
+      hint.textContent = count + ' / ' + maxChars;
+      hint.classList.toggle('overLimit', count > maxChars);
 
       return {
         count,
@@ -696,7 +700,7 @@
       const maxChars = getAnswerCharLimit(question);
       const count = countAnswerChars(text);
 
-      if (maxChars > 0 && count > maxChars) {
+      if (count > maxChars) {
         if (showMessage) {
           setMsg(
             'sendStatus',
