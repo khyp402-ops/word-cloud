@@ -158,6 +158,19 @@
       color: #16a34a;
     }
 
+    .inputHint {
+      min-height: 22px;
+      margin-top: 8px;
+      color: #64748b;
+      font-size: 15px;
+      font-weight: 900;
+      text-align: right;
+    }
+
+    .inputHint.overLimit {
+      color: #dc2626;
+    }
+
     .historyTitle {
       font-size: 20px;
       font-weight: 950;
@@ -266,7 +279,8 @@
 
       <section class="card">
         <label class="label" for="wordInput">輸入文字</label>
-        <input id="wordInput" maxlength="200" autocomplete="off" placeholder="輸入後按送出" />
+        <input id="wordInput" autocomplete="off" placeholder="輸入後按送出" />
+        <div id="wordCountHint" class="inputHint" aria-live="polite">0 / 無限制</div>
 
         <button id="sendBtn" type="button">送出</button>
         <div id="sendStatus" class="status"></div>
@@ -321,6 +335,13 @@
           submitWord();
         }
       });
+
+      document.getElementById('wordInput').addEventListener('input', () => {
+        updateWordCountHint();
+        applySendAvailability();
+      });
+
+      updateWordCountHint();
     });
 
     window.addEventListener('pagehide', () => {
@@ -533,6 +554,10 @@
         return;
       }
 
+      if (!isAnswerWithinLimit(text, true)) {
+        return;
+      }
+
       state.submitBusy = true;
       applySendAvailability();
 
@@ -546,6 +571,7 @@
         });
 
         input.value = '';
+        updateWordCountHint();
         input.focus();
 
         state.lastRenderSignature = '';
@@ -596,16 +622,15 @@
         user.remaining === null ? '不限' : user.remaining;
 
       const wordInput = document.getElementById('wordInput');
-      const maxChars = Number(question.maxCharsPerWord || 0);
+      const maxChars = getAnswerCharLimit(question);
 
-      if (maxChars > 0) {
-        wordInput.maxLength = String(maxChars);
-        wordInput.placeholder = '最多 ' + maxChars + ' 字';
-      } else {
-        wordInput.maxLength = '200';
-        wordInput.placeholder = '輸入後按送出';
-      }
+      // 使用自訂字數計算，避免 HTML maxlength 對 emoji 採 UTF-16 計數而與後端不一致。
+      wordInput.removeAttribute('maxlength');
+      wordInput.placeholder = maxChars > 0
+        ? '請輸入文字（最多 ' + maxChars + ' 字）'
+        : '輸入後按送出';
 
+      updateWordCountHint();
       renderHistory(data.ownResponses || []);
       applySendAvailability();
     }
@@ -619,6 +644,7 @@
         questionId: question.questionId || '',
         questionText: question.questionText || '',
         questionStatus: question.status || '',
+        maxCharsPerWord: question.maxCharsPerWord || 0,
         remaining: user.remaining,
         usedCount: user.usedCount || 0,
         responses: (data.ownResponses || []).map(item => ({
@@ -627,6 +653,61 @@
           rejectReason: item.rejectReason || ''
         }))
       });
+    }
+
+    function getAnswerCharLimit(question) {
+      const value = Number(question && question.maxCharsPerWord || 0);
+      return Number.isInteger(value) && value > 0 ? value : 0;
+    }
+
+    function normalizeAnswerTextForCount(value) {
+      return String(value || '')
+        .replace(/[<>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function countAnswerChars(value) {
+      return Array.from(normalizeAnswerTextForCount(value)).length;
+    }
+
+    function updateWordCountHint() {
+      const input = document.getElementById('wordInput');
+      const hint = document.getElementById('wordCountHint');
+      const question = state.lastUserData && state.lastUserData.question
+        ? state.lastUserData.question
+        : {};
+      const maxChars = getAnswerCharLimit(question);
+      const count = countAnswerChars(input ? input.value : '');
+
+      hint.textContent = count + ' / ' + (maxChars > 0 ? maxChars : '無限制');
+      hint.classList.toggle('overLimit', maxChars > 0 && count > maxChars);
+
+      return {
+        count,
+        maxChars
+      };
+    }
+
+    function isAnswerWithinLimit(text, showMessage) {
+      const question = state.lastUserData && state.lastUserData.question
+        ? state.lastUserData.question
+        : {};
+      const maxChars = getAnswerCharLimit(question);
+      const count = countAnswerChars(text);
+
+      if (maxChars > 0 && count > maxChars) {
+        if (showMessage) {
+          setMsg(
+            'sendStatus',
+            '本題限制 ' + maxChars + ' 字，目前 ' + count + ' 字',
+            'error'
+          );
+        }
+        return false;
+      }
+
+      return true;
     }
 
     function applySendAvailability() {
@@ -658,6 +739,11 @@
         return;
       }
 
+      if (!isAnswerWithinLimit(document.getElementById('wordInput').value, true)) {
+        button.disabled = true;
+        return;
+      }
+
       button.disabled = false;
 
       const status = document.getElementById('sendStatus');
@@ -668,7 +754,8 @@
           '目前尚未開放送出',
           '你已達本題送出上限',
           '同步失敗，系統會自動重試'
-        ].includes(status.textContent)
+        ].includes(status.textContent) ||
+        /^本題限制 \d+ 字，目前 \d+ 字$/.test(status.textContent)
       ) {
         setMsg('sendStatus', '', '');
       }
